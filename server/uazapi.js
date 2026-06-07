@@ -55,7 +55,7 @@ export const uazapi = {
   },
   // Envia mensagem de texto. number = 5511999999999
   sendText(token, number, text) {
-    return call('/send/text', { method: 'POST', token, body: { number, text, linkPreview: true } });
+    return call('/send/text', { method: 'POST', token, body: { number, text, linkPreview: false } });
   },
   // Registra o webhook para receber mensagens de entrada
   setWebhook(token, url) {

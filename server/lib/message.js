@@ -7,13 +7,17 @@ export function parseReply(reply = '', dns = '', username = '', password = '') {
 
   const smartersUrl = grab(/SMARTERS[\s\S]*?URL:\*?\s*(https?:\/\/\S+)/i) || 'http://pthdtv.top';
   const xcUrl = grab(/XCIPTV[\s\S]*?URL:\*?\s*(https?:\/\/\S+)/i) || dns || '';
-  let m3uLink = grab(/Link Curto \(M3U\):\*?\s*(https?:\/\/\S+)/i);
-  if (!m3uLink && xcUrl && username) {
-    m3uLink = `${xcUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
-  }
+
+  // Links M3U completos (.TS e .MPEGTS) — o cliente testa os dois
+  const base = xcUrl || dns || '';
+  let m3uTs = grab(/Link \(M3U \.TS\):\*?\s*(https?:\/\/\S+)/i);
+  let m3uMpegts = grab(/Link \(M3U \.MPEGTS\):\*?\s*(https?:\/\/\S+)/i);
+  if (!m3uTs && base && username) m3uTs = `${base}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
+  if (!m3uMpegts && base && username) m3uMpegts = `${base}/get.php?username=${username}&password=${password}&type=m3u_plus&output=mpegts`;
+
   const rpCode = grab(/SERVIDOR:\s*\*?(\d{4,})/i) || '38155545';
 
-  return { smartersUrl, xcUrl, m3uLink, rpCode };
+  return { smartersUrl, xcUrl, m3uTs, m3uMpegts, rpCode };
 }
 
 // Estilo de credencial conforme o app.
@@ -55,8 +59,9 @@ export function buildTestMessage({ app, name, username, password, expiresLabel, 
   } else if (style === 'm3u') {
     body =
       `📲 *Como acessar no ${appName}:*\n` +
-      `Adicione a lista pelo *link M3U* abaixo:\n\n` +
-      `🔗 ${p.m3uLink}\n\n` +
+      `Adicione a lista por um dos *links M3U* abaixo. *Teste os dois* e use o que abrir certinho no seu aparelho:\n\n` +
+      `🔗 *Opção 1 (M3U .TS):*\n${p.m3uTs}\n\n` +
+      `🔗 *Opção 2 (M3U .MPEGTS):*\n${p.m3uMpegts}\n\n` +
       `_(Usuário ${username} / Senha ${password}, caso o app peça separado.)_`;
   } else {
     // xc / universal
