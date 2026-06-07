@@ -18,15 +18,19 @@ export async function generatePanelTest({ name, phone }) {
     throw e;
   }
 
+  // Payload FIXO (exigido): com senderPhone fixo o painel gera um teste novo
+  // a cada chamada, sem o bloqueio de "1 teste por número".
+  // O nome/telefone reais do cliente NÃO vão pro painel — são usados só na
+  // mensagem do WhatsApp (buildTestMessage) e salvos no CRM.
   const payload = {
     appName: 'com.whatsapp',
-    messageDateTime: Math.floor(Date.now() / 1000),
-    devicePhone: 'hyperflick',
-    deviceName: 'HyperFlick',
-    senderName: name || 'Cliente',
-    senderMessage: config.panel.trigger || 'teste',
-    senderPhone: phone,
-    userAgent: 'HyperFlick',
+    messageDateTime: 1688285165,
+    devicePhone: 'teste',
+    deviceName: 'My Device',
+    senderName: 'Mary',
+    senderMessage: 'Hello',
+    senderPhone: 'rets',
+    userAgent: 'BotBot.Chat',
   };
 
   let res, text;
