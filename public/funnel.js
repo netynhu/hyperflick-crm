@@ -7,8 +7,8 @@ const SUPPORT_WHATSAPP = "5500000000000"; // opcional: número de suporte com DD
   if (!el) return;
   const key = 'hf_vagas_' + new Date().toISOString().slice(0, 10);
   let n = parseInt(localStorage.getItem(key), 10);
-  if (!Number.isFinite(n)) n = 7 + Math.floor(Math.random() * 6); // começa entre 7 e 12
-  if (n > 3 && Math.random() < 0.45) n -= 1;                       // cai aos poucos, piso 3, nunca zera
+  if (!Number.isFinite(n)) n = 80 + Math.floor(Math.random() * 21);  // começa entre 80 e 100
+  if (n > 12 && Math.random() < 0.5) n -= 1 + Math.floor(Math.random() * 2); // cai aos poucos, piso 12
   localStorage.setItem(key, String(n));
   el.textContent = n;
 })();
@@ -147,9 +147,10 @@ const TV_BRANDS = [
   { id: 'outras', name: 'Outra marca', sub: 'TCL, Philco...' },
 ];
 const APP_RULES = {
-  'smarttv:samsung': { apps: ['IPTV Smarters', 'IBO Pro'], fallback: 'XC IPTV', store: 'Samsung Apps (Tizen)' },
-  'smarttv:lg': { apps: ['IPTV Smarters', 'Assist Plus'], fallback: 'XC IPTV', store: 'LG Content Store (webOS)' },
-  'smarttv:roku': { apps: ['Assist Plus'], fallback: 'XC IPTV', store: 'Roku Channel Store' },
+  // Samsung (Tizen) e LG (webOS) NÃO têm XC IPTV nem RP725 (são só de Android).
+  'smarttv:samsung': { apps: ['IPTV Smarters', 'IBO Player', 'Assist Plus'], fallback: null, store: 'Samsung Apps (Tizen)' },
+  'smarttv:lg': { apps: ['IPTV Smarters', 'Assist Plus'], fallback: null, store: 'LG Content Store (webOS)' },
+  'smarttv:roku': { apps: ['Assist Plus'], fallback: null, store: 'Roku Channel Store' },
   'smarttv:android': { apps: ['RP725'], fallback: 'XC IPTV', store: 'Google Play Store' },
   'smarttv:outras': { apps: ['XC IPTV'], fallback: null, store: 'loja da sua TV' },
   'tvbox:_': { apps: ['RP725', 'XC IPTV'], fallback: null, store: 'Google Play Store' },
@@ -164,6 +165,7 @@ const INSTALL_STEPS = {
   'XC IPTV': [['Instale o XC IPTV', 'Funciona em várias marcas'], ['Selecione Xtream Codes', 'No app'], ['Usuário, senha e URL', 'No WhatsApp']],
   'Assist Plus': [['Instale o Assist Plus', 'Loja do aparelho'], ['Adicione lista (Xtream)', 'No app'], ['Dados do teste', 'No WhatsApp']],
   'IBO Pro': [['Instale o IBO Pro', 'Anote a Device Key'], ['Abra o app', 'Veja o código'], ['Use os dados', 'No WhatsApp']],
+  'IBO Player': [['Instale o IBO Player', 'Anote a Device Key'], ['Abra o app', 'Veja o código'], ['Use os dados', 'No WhatsApp']],
   'VU IPTV Player': [['Baixe na App Store', '"VU IPTV Player"'], ['Adicione playlist Xtream', 'No app'], ['Dados do teste', 'No WhatsApp']],
   'Smarters IPTV': [['Acesse pelo navegador', 'No PC'], ['Escolha Xtream Codes', 'Login'], ['Dados do teste', 'No WhatsApp']],
 };
@@ -172,7 +174,7 @@ const BUY_URL = 'https://www.ativeapp.com/index/ativaappagora';
 const APP_META = {
   'IPTV Smarters': { free: true }, 'Smarters IPTV': { free: true }, 'XC IPTV': { free: true },
   'RP725': { free: true }, 'VU IPTV Player': { free: true },
-  'IBO Pro': { free: false }, 'Assist Plus': { free: false },
+  'IBO Pro': { free: false }, 'IBO Player': { free: false }, 'Assist Plus': { free: false },
 };
 const ASSIST_VIDEO = 'https://s3.cloudbot-ia.cloud/typebot/public/workspaces/cmgjx1hhy0000qk13vmaetfsv/typebots/cmnz8dh7s0004td0wtow1pnad/blocks/rj6alc5e24wg5e5icyigbgle?v=1780851200028';
 
@@ -230,12 +232,6 @@ function renderApp() {
   if (!flow.app || !rule.apps.includes(flow.app)) flow.app = rule.apps[0];
   const meta = APP_META[flow.app] || { free: true };
 
-  const legend = `
-    <div class="applegend">
-      <div><span class="badge-free">Grátis</span> <span class="ap">IPTV Smarters · XC IPTV · RP725</span></div>
-      <div><span class="badge-paid">R$ 20</span> <span class="ap">IBO Pro · Assist Plus</span> — em ativeapp.com</div>
-    </div>`;
-
   const appList = rule.apps.length > 1
     ? `<div class="opts" style="margin-bottom:6px">${rule.apps.map(a => `<div class="app ${a === flow.app ? 'sel' : ''}" onclick="flashSel(()=>selectApp('${a}'))"><div><b>${a}</b><span>Toque para escolher</span></div>${appBadge(a)}</div>`).join('')}</div>`
     : '';
@@ -259,7 +255,6 @@ function renderApp() {
     <div class="spark">📥</div>
     <h2>App pra assistir: <span class="y">${flow.app}</span></h2>
     <p class="hint">Escolha como vai assistir e receba seu acesso 👇</p>
-    ${legend}
     ${appList}
     ${paidBox}
     ${fb}
@@ -310,6 +305,7 @@ async function submitCapture() {
     const r = await fetch('/api/leads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Erro ao registrar.');
+    try { if (window.fbq) fbq('track', 'Lead', { content_name: 'teste-gratis' }); } catch (_) {}
     leadCaptured = true; lastTest = data.test; renderPlans();
   } catch (e) {
     // não perde o lead: segue mesmo assim, equipe envia depois

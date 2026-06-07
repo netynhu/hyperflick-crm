@@ -271,6 +271,8 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function planPrice(plan) { const p = String(plan || '').toLowerCase(); if (p.includes('semes')) return PRICES.semestral; if (p.includes('anu')) return PRICES.anual; return PRICES.mensal; }
+const curMonth = () => new Date().toISOString().slice(0, 7);
+function monthRange(month) { const from = month + '-01'; const d = new Date(from + 'T12:00:00'); d.setMonth(d.getMonth() + 1); d.setDate(0); return { from, to: d.toISOString().slice(0, 10) }; }
 
 /* ===================== LOGIN ===================== */
 function enterApp() {
@@ -344,7 +346,7 @@ const STAGES = [
   { id: 'followup', label: 'Follow-up', color: '#b7791f' },
 ];
 let LEADS = [];
-async function loadKanban() { LEADS = await api('/leads'); renderBoard(); }
+async function loadKanban() { LEADS = (await api('/leads')).filter(l => l.source !== 'manual'); renderBoard(); }
 function dealValue(l) { return planPrice(l.plan); }
 function renderBoard() {
   const now = Date.now();
@@ -479,7 +481,7 @@ async function delLead(id) { if (!confirm('Excluir este lead?')) return; try { a
 let MSG = { image: '', buttons: [], target: 'numero', stageCounts: {} };
 async function loadMsgs() {
   // contagem por etapa para o seletor de destinatários
-  try { const leads = await api('/leads'); MSG.stageCounts = {}; for (const l of leads) MSG.stageCounts[l.stage] = (MSG.stageCounts[l.stage] || 0) + 1; MSG.total = leads.length; }
+  try { const leads = (await api('/leads')).filter(l => l.source !== 'manual'); MSG.stageCounts = {}; for (const l of leads) MSG.stageCounts[l.stage] = (MSG.stageCounts[l.stage] || 0) + 1; MSG.total = leads.length; }
   catch (e) { MSG.stageCounts = {}; MSG.total = 0; }
   renderMsgs();
 }
@@ -604,11 +606,16 @@ async function finResumo() {
     </div>`;
 }
 async function finCobrancas() {
-  const rows = await api('/payments');
+  const month = window._cobMonth || (window._cobMonth = curMonth());
+  const { from, to } = monthRange(month);
+  const rows = await api(`/payments?from=${from}&to=${to}`);
+  window._cobRows = rows;
+  const totalMes = rows.reduce((s, p) => s + (p.status === 'pago' ? Number(p.amount) : 0), 0);
   document.getElementById('finBody').innerHTML = `
     <div class="card-box">
       <h4>Adicionar cobrança / cliente</h4>
-      <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:12px">
+      <div class="desc">Cobrança manual fica só no Financeiro — não entra no funil do CRM.</div>
+      <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:4px">
         <input id="mcName" placeholder="Nome do cliente" style="flex:2;min-width:140px">
         <input id="mcPhone" placeholder="WhatsApp (DDD)" style="flex:1;min-width:120px">
         <input id="mcPlan" placeholder="Plano / descrição" style="flex:1;min-width:120px">
@@ -617,13 +624,19 @@ async function finCobrancas() {
         <button class="btn" style="flex:0 0 auto" onclick="addCharge()">Adicionar</button>
       </div>
     </div>
+    <div class="row" style="align-items:center;gap:10px;margin-bottom:14px">
+      <label style="color:var(--muted);font-size:13px;flex:0 0 auto">Mês (vencimento):</label>
+      <input type="month" value="${month}" onchange="window._cobMonth=this.value;finCobrancas()" style="max-width:190px">
+      <span style="flex:1"></span>
+      <span class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">Recebido no mês: ${money(totalMes)}</span>
+    </div>
     <table>
       <thead><tr><th>Cliente</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.length ? rows.map(p => `<tr>
           <td><b style="color:var(--ink)">${esc(p.lead?.name || '—')}</b><div style="color:var(--faint);font-size:12px">${esc(p.lead?.phone || '')}</div></td>
           <td>${esc(p.plan || '')}</td><td>${money(p.amount)}</td><td>${fmtDate(p.due_date)}</td>
           <td><span class="pill ${p.status}">${p.status}</span></td>
-          <td style="text-align:right;white-space:nowrap">${p.status !== 'pago' ? `<button class="btn sm" onclick="payPix('${p.id}')">Pix</button> <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`} <button class="btn sm red" onclick="delCharge('${p.id}')">Excluir</button></td>
+          <td style="text-align:right;white-space:nowrap">${p.status !== 'pago' ? `<button class="btn sm" onclick="payPix('${p.id}')">Pix</button> <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`} <button class="btn sm ghost" onclick="editCharge('${p.id}')">Editar</button> <button class="btn sm red" onclick="delCharge('${p.id}')">Excluir</button></td>
         </tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma cobrança ainda.</td></tr>'}</tbody>
     </table>`;
 }
@@ -636,8 +649,40 @@ async function addCharge() {
 async function payMark(id, status) { try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); finCobrancas(); } catch (e) { toast('Erro: ' + e.message); } }
 async function payPix(id) { toast('Gerando Pix...'); try { const r = await api('/payments/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) }); toast(r.whatsappSent ? 'Pix enviado no WhatsApp' : 'Pix gerado'); } catch (e) { toast('Erro: ' + e.message); } }
 async function delCharge(id) { if (!confirm('Excluir esta cobrança?')) return; try { await api('/payments/' + id, { method: 'DELETE' }); toast('Cobrança excluída'); finCobrancas(); } catch (e) { toast('Erro: ' + e.message); } }
+function editCharge(id) {
+  const p = (window._cobRows || []).find(r => r.id === id); if (!p) return;
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal" onclick="if(event.target===this)closeModal()">
+      <div class="box" style="text-align:left;max-width:420px"><button class="x" onclick="closeModal()">×</button>
+        <h3 style="font-size:18px;color:var(--ink)">Editar cobrança</h3>
+        <div class="sub" style="color:var(--muted);font-size:12.5px;margin-top:3px">${esc(p.lead?.name || '—')}</div>
+        <div class="field"><label>Plano / descrição</label><input id="edPlan" value="${esc(p.plan || '')}"></div>
+        <div class="row">
+          <div class="field" style="flex:1"><label>Valor</label><input id="edAmount" type="number" step="0.01" value="${Number(p.amount) || 0}"></div>
+          <div class="field" style="flex:1"><label>Vencimento</label><input id="edDue" type="date" value="${p.due_date || ''}"></div>
+        </div>
+        <div class="field"><label>Status</label>
+          <select id="edStatus">${['pendente', 'pago', 'atrasado', 'cancelado'].map(s => `<option value="${s}" ${s === p.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+        </div>
+        <div class="field"><label>Observações</label><textarea id="edNotes" rows="2">${esc(p.notes || '')}</textarea></div>
+        <button class="btn" style="width:100%;margin-top:6px" onclick="saveCharge('${p.id}')">Salvar alterações</button>
+      </div></div>`;
+}
+async function saveCharge(id) {
+  const body = {
+    plan: document.getElementById('edPlan').value,
+    amount: document.getElementById('edAmount').value,
+    due_date: document.getElementById('edDue').value || null,
+    status: document.getElementById('edStatus').value,
+    notes: document.getElementById('edNotes').value,
+  };
+  try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify(body) }); toast('Cobrança atualizada'); closeModal(); finCobrancas(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
 async function finDespesas() {
-  const rows = await api('/expenses'); const total = rows.reduce((s, e) => s + Number(e.amount), 0);
+  const month = window._despMonth || (window._despMonth = curMonth());
+  const { from, to } = monthRange(month);
+  const rows = await api(`/expenses?from=${from}&to=${to}`); const total = rows.reduce((s, e) => s + Number(e.amount), 0);
   document.getElementById('finBody').innerHTML = `
     <div class="card-box">
       <h4>Adicionar despesa</h4>
@@ -649,7 +694,11 @@ async function finDespesas() {
         <button class="btn" style="flex:0 0 auto" onclick="addExpense()">Adicionar</button>
       </div>
     </div>
-    <div class="section-h">Despesas — total ${money(total)}</div>
+    <div class="row" style="align-items:center;gap:10px;margin-bottom:14px">
+      <label style="color:var(--muted);font-size:13px;flex:0 0 auto">Mês:</label>
+      <input type="month" value="${month}" onchange="window._despMonth=this.value;finDespesas()" style="max-width:190px">
+    </div>
+    <div class="section-h">Despesas de ${month.split('-').reverse().join('/')} — total ${money(total)}</div>
     <table>
       <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Data</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.length ? rows.map(e => `<tr>

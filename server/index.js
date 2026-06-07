@@ -5,7 +5,7 @@ import { config, configWarnings } from './config.js';
 app.listen(config.port, () => {
   console.log(`\n🧡 HyperFlick rodando em ${config.publicUrl}`);
   console.log(`   Funil:  ${config.publicUrl}/`);
-  console.log(`   CRM:    ${config.publicUrl}/crm`);
+  console.log(`   Painel: ${config.publicUrl}/painel`);
   const w = configWarnings();
   if (w.length) {
     console.log('\n⚠️  Avisos de configuração:');

@@ -82,6 +82,7 @@ alter table payments add column if not exists mp_payment_id   text;
 alter table payments add column if not exists pix_code        text;  -- copia e cola
 alter table payments add column if not exists pix_ticket_url  text;  -- link do Pix
 alter table payments add column if not exists last_charged_at timestamptz; -- última cobrança Pix enviada
+alter table payments add column if not exists dunning_done boolean default false; -- cobrança automática já enviada 1x (não reenviar)
 create index if not exists payments_mp_idx on payments (mp_payment_id);
 
 -- ============================================================

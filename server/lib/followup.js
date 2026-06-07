@@ -3,7 +3,7 @@
 //            → winback (dia seguinte, com Pix).
 import { sb } from '../supabase.js';
 import { config } from '../config.js';
-import { planPrice } from './helpers.js';
+import { planPrice, normalizePhone } from './helpers.js';
 import { createPixPayment } from './mercadopago.js';
 import { sendWhatsApp } from './service.js';
 
@@ -101,7 +101,14 @@ export async function runBilling() {
   const actions = [];
   for (const p of pays || []) {
     if (!p.lead || p.lead.stage !== 'ganho') continue; // só clientes
-    if (p.last_charged_at && Date.now() - new Date(p.last_charged_at).getTime() < 20 * H) continue;
+    // Cobra cada mensalidade automaticamente UMA única vez (atrasado inclusive).
+    if (p.dunning_done) continue;
+    // Sem WhatsApp válido: não dispara cobrança (será cobrada de outra forma).
+    if (normalizePhone(p.lead.phone).length < 12) {
+      await sb().from('payments').update({ dunning_done: true }).eq('id', p.id);
+      actions.push(`${p.id}:sem-whatsapp`);
+      continue;
+    }
     try {
       const pix = await createPixPayment({
         amount: p.amount,
@@ -114,6 +121,7 @@ export async function runBilling() {
       await sb().from('payments').update({
         method: 'pix', mp_payment_id: String(pix.id), pix_code: pix.pixCode,
         pix_ticket_url: pix.ticketUrl, last_charged_at: new Date().toISOString(),
+        dunning_done: true,
       }).eq('id', p.id);
       const valor = Number(p.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const nome = (p.lead.name || '').split(' ')[0];

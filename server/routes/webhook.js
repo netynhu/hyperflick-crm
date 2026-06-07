@@ -105,15 +105,16 @@ router.post('/mercadopago', async (req, res) => {
           }
           if (leadId) {
             await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);
-            const { data: lead } = await sb().from('leads').select('name,phone').eq('id', leadId).maybeSingle();
+            const { data: lead } = await sb().from('leads').select('name,phone,test_username').eq('id', leadId).maybeSingle();
             if (lead) {
               const nome = (lead.name || '').split(' ')[0];
               try {
                 await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
               } catch (e) { /* ignore */ }
-              // avisa o admin da venda
+              // avisa o admin da venda (com o usuário de acesso do cliente)
               const valor = Number(payment?.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-              await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead.name}\nPlano: ${payment?.plan || '-'}\nValor: R$ ${valor}\nForma: Pix`);
+              const usuario = lead.test_username ? `\nUsuário: ${lead.test_username}` : '';
+              await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead.name}${usuario}\nPlano: ${payment?.plan || '-'}\nValor: R$ ${valor}\nForma: Pix`);
             }
           }
         }

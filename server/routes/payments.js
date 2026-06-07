@@ -16,6 +16,8 @@ router.get('/', async (req, res) => {
       .select('*, lead:leads(id,name,phone,plan,stage)')
       .order('due_date', { ascending: true });
     if (req.query.status) q = q.eq('status', req.query.status);
+    if (req.query.from) q = q.gte('due_date', req.query.from);
+    if (req.query.to) q = q.lte('due_date', req.query.to);
     const { data, error } = await q;
     if (error) throw error;
 
@@ -49,7 +51,9 @@ router.post('/manual', async (req, res) => {
     if (!amount) return res.status(400).json({ error: 'Informe o valor.' });
     const phone = b.phone ? normalizePhone(b.phone) : null;
 
-    // reaproveita lead pelo telefone, senão cria
+    // Cobrança manual NÃO entra no funil do CRM: o caminho é sempre CRM → cobrança,
+    // nunca o contrário. Reaproveita lead pelo telefone só pra vincular a cobrança;
+    // se não existir, cria um registro avulso marcado como manual (oculto do board).
     let lead = null;
     if (phone) {
       const { data: ex } = await sb().from('leads').select('*').eq('phone', phone).maybeSingle();
@@ -62,7 +66,8 @@ router.post('/manual', async (req, res) => {
       }).select().single();
       lead = data;
     } else {
-      await sb().from('leads').update({ name, stage: 'ganho', plan: b.plan || lead.plan }).eq('id', lead.id);
+      // lead já existe no CRM: apenas atualiza dados básicos, sem mexer na etapa do funil
+      await sb().from('leads').update({ name, plan: b.plan || lead.plan }).eq('id', lead.id);
     }
 
     const { data: payment, error } = await sb().from('payments').insert({
@@ -120,9 +125,10 @@ router.patch('/:id', async (req, res) => {
     if (error) throw error;
     // avisa o admin quando uma cobrança é marcada como paga manualmente
     if (upd.status === 'pago' && data.lead_id) {
-      const { data: lead } = await sb().from('leads').select('name').eq('id', data.lead_id).maybeSingle();
+      const { data: lead } = await sb().from('leads').select('name,test_username').eq('id', data.lead_id).maybeSingle();
       const valor = Number(data.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead?.name || '-'}\nPlano: ${data.plan || '-'}\nValor: R$ ${valor}`);
+      const usuario = lead?.test_username ? `\nUsuário: ${lead.test_username}` : '';
+      await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead?.name || '-'}${usuario}\nPlano: ${data.plan || '-'}\nValor: R$ ${valor}`);
     }
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -140,7 +146,8 @@ router.delete('/:id', async (req, res) => {
 router.get('/summary/all', async (_req, res) => {
   try {
     const { data: payments } = await sb().from('payments').select('amount,status');
-    const { data: leads } = await sb().from('leads').select('stage,plan');
+    // Funil só conta leads do CRM (exclui clientes de cobrança manual).
+    const { data: leads } = await sb().from('leads').select('stage,plan,source').neq('source', 'manual');
     const { data: expenses } = await sb().from('expenses').select('amount');
 
     const fin = { recebido: 0, pendente: 0, atrasado: 0, pagos: 0, emAberto: 0 };

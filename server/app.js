@@ -48,7 +48,8 @@ app.get('/api/config', (_req, res) =>
 // Frontend estático
 const pub = path.join(__dirname, '..', 'public');
 app.get('/', (_req, res) => res.sendFile(path.join(pub, 'index.html')));
-app.get('/crm', (_req, res) => res.sendFile(path.join(pub, 'crm', 'index.html')));
+app.get('/painel', (_req, res) => res.sendFile(path.join(pub, 'crm', 'index.html')));
+app.get('/crm', (_req, res) => res.redirect(301, '/painel')); // compatibilidade
 app.use(express.static(pub));
 
 export { app };
