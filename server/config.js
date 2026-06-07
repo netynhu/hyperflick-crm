@@ -5,7 +5,7 @@ const num = (v, d) => (v === undefined || v === '' ? d : Number(v));
 
 export const config = {
   port: num(process.env.PORT, 3000),
-  publicUrl: process.env.PUBLIC_URL || 'http://localhost:3000',
+  publicUrl: (process.env.PUBLIC_URL || 'http://localhost:3000').replace(/\/+$/, ''),
 
   supabase: {
     url: process.env.SUPABASE_URL || '',
