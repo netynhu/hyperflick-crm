@@ -78,31 +78,42 @@ router.post('/mercadopago', async (req, res) => {
         const pay = await getPayment(id);
         if (pay.status === 'approved') {
           const { data: payment } = await sb().from('payments').select('*').eq('mp_payment_id', String(id)).maybeSingle();
-          if (!(payment && payment.status === 'pago')) { // idempotente
-            const leadId = payment?.lead_id || pay.externalReference;
-            if (payment) {
-              await sb().from('payments').update({ status: 'pago', paid_at: new Date().toISOString() }).eq('id', payment.id);
-              const months = planMonths(payment.plan) || 1;
-              const next = new Date((payment.due_date || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
-              next.setMonth(next.getMonth() + months);
-              await sb().from('payments').insert({
-                lead_id: payment.lead_id, plan: payment.plan, amount: payment.amount,
-                status: 'pendente', due_date: next.toISOString().slice(0, 10),
-                period_start: new Date().toISOString().slice(0, 10), period_end: next.toISOString().slice(0, 10),
-              });
-            }
-            if (leadId) {
-              await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);
-              const { data: lead } = await sb().from('leads').select('name,phone').eq('id', leadId).maybeSingle();
-              if (lead) {
-                const nome = (lead.name || '').split(' ')[0];
-                try {
-                  await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
-                } catch (e) { /* ignore */ }
-                // avisa o admin da venda
-                const valor = Number(payment?.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead.name}\nPlano: ${payment?.plan || '-'}\nValor: R$ ${valor}\nForma: Pix`);
-              }
+          const leadId = payment?.lead_id || pay.externalReference;
+
+          // CLAIM ATÔMICO: o Mercado Pago reenvia o webhook várias vezes para o
+          // mesmo pagamento. Marcamos como pago em UMA query condicional
+          // (status <> 'pago') e só seguimos se ESTA chamada fez a transição —
+          // assim a próxima cobrança e o aviso ao admin não duplicam.
+          let claimed = !payment; // sem linha de pagamento (fallback): segue uma vez
+          if (payment) {
+            const { data: rows } = await sb().from('payments')
+              .update({ status: 'pago', paid_at: new Date().toISOString() })
+              .eq('id', payment.id).neq('status', 'pago').select('id');
+            claimed = Array.isArray(rows) && rows.length > 0;
+          }
+          if (!claimed) { res.json({ ok: true, duplicate: true }); return; }
+
+          if (payment) {
+            const months = planMonths(payment.plan) || 1;
+            const next = new Date((payment.due_date || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+            next.setMonth(next.getMonth() + months);
+            await sb().from('payments').insert({
+              lead_id: payment.lead_id, plan: payment.plan, amount: payment.amount,
+              status: 'pendente', due_date: next.toISOString().slice(0, 10),
+              period_start: new Date().toISOString().slice(0, 10), period_end: next.toISOString().slice(0, 10),
+            });
+          }
+          if (leadId) {
+            await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);
+            const { data: lead } = await sb().from('leads').select('name,phone').eq('id', leadId).maybeSingle();
+            if (lead) {
+              const nome = (lead.name || '').split(' ')[0];
+              try {
+                await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
+              } catch (e) { /* ignore */ }
+              // avisa o admin da venda
+              const valor = Number(payment?.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+              await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead.name}\nPlano: ${payment?.plan || '-'}\nValor: R$ ${valor}\nForma: Pix`);
             }
           }
         }

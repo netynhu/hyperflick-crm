@@ -623,7 +623,7 @@ async function finCobrancas() {
           <td><b style="color:var(--ink)">${esc(p.lead?.name || '—')}</b><div style="color:var(--faint);font-size:12px">${esc(p.lead?.phone || '')}</div></td>
           <td>${esc(p.plan || '')}</td><td>${money(p.amount)}</td><td>${fmtDate(p.due_date)}</td>
           <td><span class="pill ${p.status}">${p.status}</span></td>
-          <td style="text-align:right;white-space:nowrap">${p.status !== 'pago' ? `<button class="btn sm" onclick="payPix('${p.id}')">Pix</button> <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`}</td>
+          <td style="text-align:right;white-space:nowrap">${p.status !== 'pago' ? `<button class="btn sm" onclick="payPix('${p.id}')">Pix</button> <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`} <button class="btn sm red" onclick="delCharge('${p.id}')">Excluir</button></td>
         </tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma cobrança ainda.</td></tr>'}</tbody>
     </table>`;
 }
@@ -635,6 +635,7 @@ async function addCharge() {
 }
 async function payMark(id, status) { try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); finCobrancas(); } catch (e) { toast('Erro: ' + e.message); } }
 async function payPix(id) { toast('Gerando Pix...'); try { const r = await api('/payments/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) }); toast(r.whatsappSent ? 'Pix enviado no WhatsApp' : 'Pix gerado'); } catch (e) { toast('Erro: ' + e.message); } }
+async function delCharge(id) { if (!confirm('Excluir esta cobrança?')) return; try { await api('/payments/' + id, { method: 'DELETE' }); toast('Cobrança excluída'); finCobrancas(); } catch (e) { toast('Erro: ' + e.message); } }
 async function finDespesas() {
   const rows = await api('/expenses'); const total = rows.reduce((s, e) => s + Number(e.amount), 0);
   document.getElementById('finBody').innerHTML = `
