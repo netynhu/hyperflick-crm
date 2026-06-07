@@ -164,6 +164,24 @@ const INSTALL_STEPS = {
   'Smarters IPTV': [['Acesse pelo navegador', 'No PC'], ['Escolha Xtream Codes', 'Login'], ['Dados do teste', 'No WhatsApp']],
 };
 
+// Extras exclusivos do Assist Plus (app pago: 7 dias grátis + vídeo tutorial)
+const ASSIST_PLUS = {
+  buyUrl: 'https://ativeapp.com/index/ativaappagora',
+  videoUrl: 'https://s3.cloudbot-ia.cloud/typebot/public/workspaces/cmgjx1hhy0000qk13vmaetfsv/typebots/cmnz8dh7s0004td0wtow1pnad/blocks/rj6alc5e24wg5e5icyigbgle?v=1780851200028',
+};
+function assistPlusExtra() {
+  if (flow.app !== 'Assist Plus') return '';
+  return `
+    <div class="fallback" style="margin:12px 0 6px">
+      <b>⚠️ O Assist Plus é um app pago</b>
+      <span>Mas você tem <b style="color:#fff">7 dias grátis</b> pra testar! Para liberar 1 ano, ative em <a href="${ASSIST_PLUS.buyUrl}" target="_blank" style="color:var(--orange-2)">ativeapp.com</a>.</span>
+    </div>
+    <p class="hint" style="text-align:left;margin:0 0 8px">🎥 Veja o tutorial de instalação:</p>
+    <video controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000;margin-bottom:6px">
+      <source src="${ASSIST_PLUS.videoUrl}" type="video/mp4">
+    </video>`;
+}
+
 function startTest(plan) {
   chosenPlan = plan || 'Recomendado';
   flow = { device: null, brand: null, app: null };
@@ -233,6 +251,7 @@ function renderInstall() {
     <h2>Como instalar o ${flow.app}</h2>
     <p class="hint">Siga os passos 👇</p>
     <div class="steps">${html}</div>
+    ${assistPlusExtra()}
     <button class="btn btn-primary btn-block mt" onclick="renderInstalled()">Continuar →</button>
     <button class="back" onclick="renderApp()">← Voltar</button>`);
 }
