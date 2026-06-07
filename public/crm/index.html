@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperFlick — CRM</title>
+<style>
+  :root{
+    --bg:#120b1c;--bg2:#1a1030;--card:#1d1430;--soft:#241836;
+    --orange:#ff6a1a;--orange-2:#ff8c3b;--orange-deep:#f15a24;
+    --green:#22c55e;--red:#ef4444;--blue:#3b82f6;--yellow:#eab308;
+    --text:#fff;--muted:#a99fb8;--border:rgba(255,106,26,.18);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif}
+  body{background:var(--bg);color:var(--text);font-size:14px}
+  ::-webkit-scrollbar{height:10px;width:10px}::-webkit-scrollbar-thumb{background:#2c2042;border-radius:6px}
+  a{color:var(--orange-2)}
+  button{font-family:inherit;cursor:pointer}
+  .hidden{display:none!important}
+
+  /* layout */
+  header{position:sticky;top:0;z-index:40;background:rgba(18,11,28,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;padding:12px 22px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}
+  .brand .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--orange),var(--orange-deep));display:flex;align-items:center;justify-content:center}
+  .brand .logo svg{width:18px;height:18px;stroke:#fff}.brand b{color:var(--orange)}
+  nav{display:flex;gap:6px;margin-left:10px}
+  nav button{background:transparent;border:none;color:var(--muted);padding:9px 16px;border-radius:9px;font-weight:600;font-size:14px}
+  nav button.active{background:var(--soft);color:#fff}
+  nav button:hover{color:#fff}
+  .wa-status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#555}.dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}.dot.off{background:var(--red)}
+  main{padding:22px}
+
+  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+  .stat .lbl{color:var(--muted);font-size:13px;font-weight:600}
+  .stat .val{font-size:28px;font-weight:800;margin-top:6px}
+  .stat .val.green{color:var(--green)}.stat .val.orange{color:var(--orange)}.stat .val.red{color:var(--red)}.stat .val.yellow{color:var(--yellow)}
+
+  .section-h{font-size:18px;font-weight:800;margin:6px 0 16px}
+
+  /* kanban */
+  .board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:10px}
+  .col{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:12px;min-height:120px}
+  .col.drag{border-color:var(--orange);background:#22153a}
+  .col-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px}
+  .col-h .count{background:var(--soft);color:var(--muted);border-radius:8px;padding:2px 9px;font-size:12px}
+  .col-h .pip{width:9px;height:9px;border-radius:3px;margin-right:7px;display:inline-block;vertical-align:middle}
+  .lead-card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px;margin-bottom:10px;cursor:grab}
+  .lead-card:hover{border-color:var(--orange)}
+  .lead-card .nm{font-weight:700}
+  .lead-card .meta{color:var(--muted);font-size:12px;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
+  .tag{display:inline-block;background:var(--soft);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600}
+  .tag.warn{background:rgba(234,179,8,.18);color:var(--yellow)}
+  .tag.exp{background:rgba(239,68,68,.18);color:var(--red)}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
+  th{color:var(--muted);font-weight:700;background:var(--bg2)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700}
+  .pill.pago{background:rgba(34,197,94,.18);color:var(--green)}
+  .pill.pendente{background:rgba(234,179,8,.18);color:var(--yellow)}
+  .pill.atrasado{background:rgba(239,68,68,.18);color:var(--red)}
+  .pill.cancelado{background:#33283f;color:var(--muted)}
+
+  .btn{background:linear-gradient(135deg,var(--orange),var(--orange-deep));color:#fff;border:none;padding:9px 16px;border-radius:9px;font-weight:700;font-size:13px}
+  .btn:hover{filter:brightness(1.07)}
+  .btn.sm{padding:6px 11px;font-size:12px}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+  .btn.green{background:var(--green);color:#04210f}
+  .btn.red{background:transparent;border:1px solid rgba(239,68,68,.5);color:#fda4a4}
+
+  /* drawer */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;display:flex;justify-content:flex-end}
+  .drawer{width:430px;max-width:100%;background:var(--bg2);height:100%;overflow-y:auto;padding:22px;border-left:1px solid var(--border);animation:slide .25s ease}
+  @keyframes slide{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+  .drawer h3{font-size:20px;font-weight:800}
+  .drawer .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .field{margin:14px 0}
+  .field label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:5px}
+  input,select,textarea{width:100%;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:10px 12px;color:#fff;font-size:14px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--orange)}
+  .row{display:flex;gap:8px}.row>*{flex:1}
+  .chat{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px;max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .msg{max-width:80%;padding:8px 11px;border-radius:11px;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+  .msg.out{align-self:flex-end;background:#3a2a13;border:1px solid rgba(255,106,26,.3)}
+  .msg.in{align-self:flex-start;background:var(--soft)}
+  .msg .tm{display:block;font-size:10px;color:var(--muted);margin-top:3px}
+  .divider{height:1px;background:rgba(255,255,255,.07);margin:18px 0}
+  .x{position:absolute;top:18px;right:22px;background:none;border:none;color:var(--muted);font-size:22px}
+
+  /* whatsapp / qr modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+  .modal .box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:26px;max-width:420px;width:100%;text-align:center;position:relative}
+  .qr{background:#fff;border-radius:12px;padding:12px;width:260px;height:260px;margin:14px auto;display:flex;align-items:center;justify-content:center}
+  .qr img{width:100%;height:100%;object-fit:contain}
+  .inst{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--orange);color:#fff;padding:12px 20px;border-radius:11px;z-index:80;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+
+  /* login */
+  .login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
+  .login .box{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:34px;width:340px;text-align:center}
+  @media(max-width:860px){.board{grid-template-columns:repeat(5,minmax(200px,1fr))}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="login">
+  <div class="box">
+    <div class="brand" style="justify-content:center;margin-bottom:8px"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
+    <p style="color:var(--muted);margin-bottom:18px">Painel CRM</p>
+    <input id="loginEmail" type="email" placeholder="E-mail" autocomplete="username" style="margin-bottom:10px" onkeydown="if(event.key==='Enter')doLogin()">
+    <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn" style="width:100%" onclick="doLogin()">Entrar</button>
+    <p id="loginErr" style="color:var(--red);font-size:12px;margin-top:10px;min-height:14px"></p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <header>
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
+    <nav>
+      <button data-tab="dash" class="active" onclick="tab('dash')">📊 Dashboard</button>
+      <button data-tab="kanban" onclick="tab('kanban')">🗂️ CRM</button>
+      <button data-tab="fin" onclick="tab('fin')">💰 Financeiro</button>
+      <button data-tab="wa" onclick="tab('wa')">📱 WhatsApp</button>
+    </nav>
+    <div class="wa-status" id="waStatus"><span class="dot"></span> verificando...</div>
+  </header>
+
+  <main>
+    <section id="dash"></section>
+    <section id="kanban" class="hidden"></section>
+    <section id="fin" class="hidden"></section>
+    <section id="wa" class="hidden"></section>
+  </main>
+</div>
+
+<div id="drawerRoot"></div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+/* ===================== AUTH (Supabase) ===================== */
+let supa = null;
+async function initSupa() {
+  if (supa) return supa;
+  const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
+  if (cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase) {
+    supa = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  }
+  return supa;
+}
+async function accessToken() {
+  if (!supa) return '';
+  const { data } = await supa.auth.getSession();
+  return data?.session?.access_token || '';
+}
+
+/* ===================== API ===================== */
+async function api(path, opts = {}) {
+  const token = await accessToken();
+  const res = await fetch('/api' + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) },
+  });
+  if (res.status === 401) { logout(); throw new Error('Não autorizado'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('Erro ' + res.status));
+  return data;
+}
+function toast(msg) {
+  const r = document.getElementById('toastRoot');
+  r.innerHTML = `<div class="toast">${msg}</div>`;
+  setTimeout(() => (r.innerHTML = ''), 3000);
+}
+const money = (v) => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ===================== LOGIN ===================== */
+function enterApp() {
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  boot();
+}
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  await initSupa();
+  if (!supa) { errEl.textContent = 'Supabase não configurado no servidor.'; return; }
+  const { error } = await supa.auth.signInWithPassword({ email, password });
+  if (error) { errEl.textContent = 'E-mail ou senha incorretos.'; return; }
+  enterApp();
+}
+async function logout() { if (supa) await supa.auth.signOut(); location.reload(); }
+
+/* ===================== TABS ===================== */
+function tab(name) {
+  ['dash', 'kanban', 'fin', 'wa'].forEach(t => {
+    document.getElementById(t).classList.toggle('hidden', t !== name);
+    document.querySelector(`nav button[data-tab="${t}"]`).classList.toggle('active', t === name);
+  });
+  if (name === 'dash') loadDash();
+  if (name === 'kanban') loadKanban();
+  if (name === 'fin') loadFin();
+  if (name === 'wa') loadWa();
+}
+
+/* ===================== DASHBOARD ===================== */
+async function loadDash() {
+  const s = await api('/payments/summary/all');
+  document.getElementById('dash').innerHTML = `
+    <div class="grid-stats">
+      <div class="stat"><div class="lbl">Total de leads</div><div class="val">${s.totalLeads}</div></div>
+      <div class="stat"><div class="lbl">Conversão (ganho)</div><div class="val orange">${s.conversao}%</div></div>
+      <div class="stat"><div class="lbl">MRR estimado</div><div class="val green">${money(s.mrr)}</div></div>
+      <div class="stat"><div class="lbl">Recebido</div><div class="val green">${money(s.financeiro.recebido)}</div></div>
+      <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(s.financeiro.pendente)}</div></div>
+      <div class="stat"><div class="lbl">Atrasado</div><div class="val red">${money(s.financeiro.atrasado)}</div></div>
+    </div>
+    <div class="section-h">Funil</div>
+    <div class="grid-stats">
+      ${[['lead', 'Leads', ''], ['testando', 'Testando', 'orange'], ['ganho', 'Ganhos', 'green'], ['perdido', 'Perdidos', 'red'], ['followup', 'Follow-up', 'yellow']]
+        .map(([k, l, c]) => `<div class="stat"><div class="lbl">${l}</div><div class="val ${c}">${s.funil[k]}</div></div>`).join('')}
+    </div>`;
+}
+
+/* ===================== KANBAN ===================== */
+const STAGES = [
+  { id: 'lead', label: 'Lead', color: '#a99fb8' },
+  { id: 'testando', label: 'Testando', color: '#ff6a1a' },
+  { id: 'ganho', label: 'Ganho', color: '#22c55e' },
+  { id: 'perdido', label: 'Perdido', color: '#ef4444' },
+  { id: 'followup', label: 'Follow-up', color: '#eab308' },
+];
+let LEADS = [];
+async function loadKanban() {
+  LEADS = await api('/leads');
+  renderBoard();
+}
+function renderBoard() {
+  const now = Date.now();
+  document.getElementById('kanban').innerHTML = `<div class="board">${STAGES.map(st => {
+    const items = LEADS.filter(l => l.stage === st.id);
+    return `<div class="col" data-stage="${st.id}"
+        ondragover="event.preventDefault();this.classList.add('drag')"
+        ondragleave="this.classList.remove('drag')"
+        ondrop="dropLead(event,'${st.id}')">
+      <div class="col-h"><span><span class="pip" style="background:${st.color}"></span>${st.label}</span><span class="count">${items.length}</span></div>
+      ${items.map(l => {
+        let exp = '';
+        if (l.test_expires_at) {
+          const left = new Date(l.test_expires_at).getTime() - now;
+          exp = left > 0 ? `<span class="tag warn">⏳ ${Math.ceil(left / 3600000)}h</span>` : `<span class="tag exp">teste expirado</span>`;
+        }
+        return `<div class="lead-card" draggable="true" ondragstart="dragLead(event,'${l.id}')" onclick="openLead('${l.id}')">
+          <div class="nm">${esc(l.name)}</div>
+          <div class="meta"><span>📱 ${esc(l.phone)}</span>${l.plan ? `<span class="tag">${esc(l.plan)}</span>` : ''}${exp}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+let dragId = null;
+function dragLead(e, id) { dragId = id; e.dataTransfer.effectAllowed = 'move'; }
+async function dropLead(e, stage) {
+  e.preventDefault();
+  document.querySelectorAll('.col').forEach(c => c.classList.remove('drag'));
+  if (!dragId) return;
+  const lead = LEADS.find(l => l.id === dragId);
+  if (!lead || lead.stage === stage) return;
+  lead.stage = stage; renderBoard();
+  try {
+    if (stage === 'ganho') await api('/leads/' + dragId + '/won', { method: 'POST', body: JSON.stringify({}) });
+    else await api('/leads/' + dragId, { method: 'PATCH', body: JSON.stringify({ stage }) });
+    toast('Movido para ' + stage);
+  } catch (err) { toast('Erro: ' + err.message); loadKanban(); }
+  dragId = null;
+}
+
+/* ===================== DRAWER (detalhe do lead) ===================== */
+async function openLead(id) {
+  const l = await api('/leads/' + id);
+  const msgs = (l.messages || []).map(m => `<div class="msg ${m.direction}">${esc(m.body)}<span class="tm">${fmtDT(m.created_at)}${m.status === 'failed' ? ' • falhou' : ''}</span></div>`).join('') || '<p style="color:var(--muted);font-size:13px">Sem mensagens ainda.</p>';
+  const pays = (l.payments || []).map(p => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span>${money(p.amount)} · ${esc(p.plan || '')}</span><span class="pill ${p.status}">${p.status}</span></div>`).join('') || '<p style="color:var(--muted);font-size:13px">Nenhuma cobrança.</p>';
+  document.getElementById('drawerRoot').innerHTML = `
+   <div class="overlay" onclick="if(event.target===this)closeDrawer()">
+    <div class="drawer">
+      <button class="x" onclick="closeDrawer()">×</button>
+      <h3>${esc(l.name)}</h3>
+      <div class="sub">📱 ${esc(l.phone)} · ${esc(l.plan || 'sem plano')} · ${esc(l.stage)}</div>
+      ${l.test_username ? `<div class="field"><label>Acesso de teste</label><div class="inst"><span>👤 ${esc(l.test_username)} / ${esc(l.test_password)}</span><span style="color:var(--muted);font-size:12px">val. ${fmtDT(l.test_expires_at)}</span></div></div>` : ''}
+
+      <div class="field"><label>Etapa</label>
+        <select id="dStage" onchange="changeStage('${l.id}',this.value)">
+          ${STAGES.map(s => `<option value="${s.id}" ${s.id === l.stage ? 'selected' : ''}>${s.label}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="row">
+        <button class="btn sm" onclick="genTest('${l.id}')">🎁 Gerar/Reenviar teste</button>
+        <button class="btn sm green" onclick="markWon('${l.id}')">✅ Ganhou</button>
+      </div>
+
+      <div class="divider"></div>
+      <label style="font-size:12px;color:var(--muted);font-weight:600">Conversa (WhatsApp)</label>
+      <div class="chat" style="margin-top:6px">${msgs}</div>
+      <div class="row">
+        <input id="dMsg" placeholder="Escreva uma mensagem..." onkeydown="if(event.key==='Enter')sendMsg('${l.id}')">
+        <button class="btn sm" style="flex:0 0 auto" onclick="sendMsg('${l.id}')">Enviar</button>
+      </div>
+
+      <div class="divider"></div>
+      <label style="font-size:12px;color:var(--muted);font-weight:600">Cobranças</label>
+      <div style="margin:6px 0">${pays}</div>
+
+      <div class="field"><label>Anotações</label>
+        <textarea id="dNotes" rows="3" placeholder="Observações internas...">${esc(l.notes || '')}</textarea>
+        <button class="btn sm ghost" style="margin-top:8px" onclick="saveNotes('${l.id}')">Salvar nota</button>
+      </div>
+
+      <div class="divider"></div>
+      <button class="btn red sm" onclick="delLead('${l.id}')">🗑️ Excluir lead</button>
+    </div>
+   </div>`;
+}
+function closeDrawer() { document.getElementById('drawerRoot').innerHTML = ''; }
+async function changeStage(id, stage) {
+  try {
+    if (stage === 'ganho') await api('/leads/' + id + '/won', { method: 'POST', body: JSON.stringify({}) });
+    else await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ stage }) });
+    toast('Etapa atualizada'); loadKanban();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+async function genTest(id) {
+  toast('Gerando teste...');
+  try {
+    const r = await api('/leads/' + id + '/test', { method: 'POST', body: JSON.stringify({}) });
+    toast(r.whatsappSent ? 'Teste enviado no WhatsApp ✅' : 'Teste gerado — WhatsApp: ' + (r.whatsappError || 'não enviado'));
+    openLead(id); loadKanban();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+async function markWon(id) {
+  try { await api('/leads/' + id + '/won', { method: 'POST', body: JSON.stringify({}) }); toast('Marcado como ganho 🎉'); openLead(id); loadKanban(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+async function sendMsg(id) {
+  const input = document.getElementById('dMsg'); const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  try { await api('/leads/' + id + '/message', { method: 'POST', body: JSON.stringify({ text }) }); openLead(id); }
+  catch (e) { toast('Erro: ' + e.message); input.value = text; }
+}
+async function saveNotes(id) {
+  const notes = document.getElementById('dNotes').value;
+  try { await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ notes }) }); toast('Nota salva'); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+async function delLead(id) {
+  if (!confirm('Excluir este lead?')) return;
+  try { await api('/leads/' + id, { method: 'DELETE' }); toast('Excluído'); closeDrawer(); loadKanban(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+
+/* ===================== FINANCEIRO ===================== */
+async function loadFin() {
+  const rows = await api('/payments');
+  document.getElementById('fin').innerHTML = `
+    <div class="section-h">Cobranças</div>
+    <table>
+      <thead><tr><th>Cliente</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.length ? rows.map(p => `
+        <tr>
+          <td>${esc(p.lead?.name || '—')}<div style="color:var(--muted);font-size:12px">${esc(p.lead?.phone || '')}</div></td>
+          <td>${esc(p.plan || '')}</td>
+          <td>${money(p.amount)}</td>
+          <td>${fmtDate(p.due_date)}</td>
+          <td><span class="pill ${p.status}">${p.status}</span></td>
+          <td style="text-align:right">
+            ${p.status !== 'pago' ? `<button class="btn sm green" onclick="payMark('${p.id}','pago')">Marcar pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`}
+          </td>
+        </tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma cobrança ainda. Marque um lead como “Ganho” para gerar.</td></tr>'}
+      </tbody>
+    </table>`;
+}
+async function payMark(id, status) {
+  try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); loadFin(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+
+/* ===================== WHATSAPP ===================== */
+async function loadWa() {
+  const list = await api('/instances');
+  document.getElementById('wa').innerHTML = `
+    <div class="section-h">Instâncias WhatsApp (uazapi)</div>
+    <div style="max-width:680px">
+      ${list.map(i => `
+        <div class="inst">
+          <div>
+            <b>${esc(i.name)}</b> ${i.is_default ? '<span class="tag">padrão</span>' : ''}
+            <div style="color:var(--muted);font-size:12px">${i.phone ? esc(i.phone) + ' · ' : ''}<span class="pill ${i.status === 'connected' ? 'pago' : i.status === 'connecting' ? 'pendente' : 'atrasado'}">${i.status}</span></div>
+          </div>
+          <div class="row" style="flex:0 0 auto;gap:6px">
+            ${i.status !== 'connected' ? `<button class="btn sm" onclick="connectInst('${i.id}')">Conectar</button>` : `<button class="btn sm ghost" onclick="discInst('${i.id}')">Desconectar</button>`}
+            ${!i.is_default ? `<button class="btn sm ghost" onclick="defInst('${i.id}')">Tornar padrão</button>` : ''}
+            <button class="btn sm red" onclick="delInst('${i.id}')">Excluir</button>
+          </div>
+        </div>`).join('') || '<p style="color:var(--muted)">Nenhuma instância. Crie uma para conectar seu WhatsApp.</p>'}
+      <button class="btn" style="margin-top:12px" onclick="newInst()">+ Nova instância</button>
+    </div>`;
+  refreshWaStatus();
+}
+async function newInst() {
+  const name = prompt('Nome da instância:', 'hyperflick');
+  if (!name) return;
+  toast('Criando instância...');
+  try { await api('/instances', { method: 'POST', body: JSON.stringify({ name }) }); loadWa(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+let qrPoll = null;
+async function connectInst(id) {
+  try {
+    const r = await api('/instances/' + id + '/connect', { method: 'POST', body: JSON.stringify({}) });
+    showQr(id, r.qrcode, r.paircode);
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+function qrSrc(qr) {
+  if (!qr) return '';
+  if (typeof qr === 'object') qr = qr.base64 || '';
+  return qr.startsWith('data:') ? qr : 'data:image/png;base64,' + qr;
+}
+function showQr(id, qr, paircode) {
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal" onclick="if(event.target===this)closeModal()">
+      <div class="box">
+        <button class="x" onclick="closeModal()">×</button>
+        <h3 style="font-size:18px">Conectar WhatsApp</h3>
+        <p style="color:var(--muted);font-size:13px;margin-top:6px">WhatsApp → Aparelhos conectados → Conectar aparelho</p>
+        <div class="qr">${qr ? `<img src="${qrSrc(qr)}">` : '<span style="color:#333">gerando QR...</span>'}</div>
+        ${paircode ? `<p>ou use o código: <b style="font-size:18px;letter-spacing:2px">${esc(paircode)}</b></p>` : ''}
+        <p id="qrState" style="color:var(--muted);font-size:13px;margin-top:8px">Aguardando leitura...</p>
+      </div>
+    </div>`;
+  clearInterval(qrPoll);
+  qrPoll = setInterval(async () => {
+    try {
+      const st = await api('/instances/' + id + '/status');
+      if (st.status === 'connected') { clearInterval(qrPoll); document.getElementById('qrState').innerHTML = '✅ Conectado!'; toast('WhatsApp conectado!'); setTimeout(() => { closeModal(); loadWa(); }, 1200); }
+    } catch (e) { }
+  }, 3000);
+}
+function closeModal() { clearInterval(qrPoll); document.getElementById('modalRoot').innerHTML = ''; }
+async function discInst(id) { try { await api('/instances/' + id + '/disconnect', { method: 'POST', body: JSON.stringify({}) }); loadWa(); } catch (e) { toast(e.message); } }
+async function defInst(id) { try { await api('/instances/' + id + '/default', { method: 'POST', body: JSON.stringify({}) }); loadWa(); } catch (e) { toast(e.message); } }
+async function delInst(id) { if (!confirm('Excluir instância?')) return; try { await api('/instances/' + id, { method: 'DELETE' }); loadWa(); } catch (e) { toast(e.message); } }
+
+/* ===================== WA STATUS BADGE ===================== */
+async function refreshWaStatus() {
+  try {
+    const list = await api('/instances');
+    const on = list.find(i => i.status === 'connected');
+    const el = document.getElementById('waStatus');
+    el.innerHTML = on
+      ? `<span class="dot on"></span> WhatsApp: ${esc(on.phone || on.name)}`
+      : `<span class="dot off"></span> WhatsApp desconectado`;
+  } catch (e) { }
+}
+
+/* ===================== BOOT ===================== */
+function boot() { loadDash(); refreshWaStatus(); }
+(async function () {
+  await initSupa();
+  const token = await accessToken();
+  if (token) enterApp(); // sessão já ativa → entra direto
+})();
+</script>
+</body>
+</html>

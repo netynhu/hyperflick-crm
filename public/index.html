@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperFlick — Descubra seu plano ideal</title>
+<style>
+  :root{
+    --bg:#120b1c;--bg2:#1a1030;--card:#1d1430;--soft:#241836;
+    --orange:#ff6a1a;--orange-2:#ff8c3b;--orange-deep:#f15a24;
+    --green:#22c55e;--red:#ef4444;
+    --text:#fff;--muted:#a99fb8;--border:rgba(255,106,26,.22);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+  body{background:var(--bg);color:var(--text);overflow-x:hidden;font-size:15px}
+  img{max-width:100%;display:block}
+
+  /* ===== TOP BAR ===== */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:100;
+    background:linear-gradient(90deg,var(--orange-deep),var(--orange));
+    color:#1a0c00;text-align:center;padding:8px 14px;
+    font-size:12.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;
+  }
+  .topbar .timer{background:rgba(0,0,0,.18);padding:2px 8px;border-radius:5px;font-variant-numeric:tabular-nums;font-weight:800}
+
+  /* ===== APP SHELL (uma tela por vez) ===== */
+  .stage{position:fixed;inset:0;padding:54px 18px 28px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow-y:auto}
+  .stage.hidden{display:none!important}
+
+  /* fundo de posters decorativo */
+  .posters{position:fixed;inset:0;z-index:0;opacity:.10;display:grid;grid-template-columns:repeat(7,1fr);gap:7px;overflow:hidden;filter:blur(1px)}
+  .posters div{aspect-ratio:2/3;border-radius:7px}
+
+  /* ===== HERO (entrada enxuta) ===== */
+  .hero{position:relative;z-index:1;text-align:center;max-width:560px;margin:auto}
+  .brand{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:.4px;margin-bottom:18px}
+  .brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--orange),var(--orange-deep));display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(255,106,26,.5)}
+  .brand .logo svg{width:18px;height:18px;stroke:#fff}.brand b{color:var(--orange)}
+  .badge{display:inline-flex;align-items:center;gap:7px;background:rgba(29,20,48,.85);border:1px solid var(--border);padding:6px 13px;border-radius:99px;font-size:12.5px;font-weight:600;margin-bottom:18px;backdrop-filter:blur(4px)}
+  .badge .stars{color:var(--orange)}
+  .hero h1{font-size:clamp(24px,5.2vw,38px);font-weight:800;line-height:1.12;margin-bottom:14px}
+  .hero h1 .y{color:var(--orange)}
+  .hero p.lead{font-size:15px;color:var(--muted);max-width:440px;margin:0 auto 24px;line-height:1.5}
+  .hero p.lead .hl{color:var(--orange-2);font-weight:600}
+  .micro{margin-top:14px;color:var(--muted);font-size:12.5px}
+
+  /* ===== BOTÕES ===== */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;cursor:pointer;font-weight:800;border-radius:12px;transition:transform .15s,box-shadow .15s,filter .15s;text-decoration:none}
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary{background:linear-gradient(135deg,var(--orange),var(--orange-deep));color:#fff;font-size:16px;padding:14px 30px;box-shadow:0 0 26px rgba(255,106,26,.4)}
+  .btn-primary:hover{box-shadow:0 0 38px rgba(255,106,26,.62)}
+  .btn-block{width:100%}
+
+  /* ===== CARD DE ETAPA ===== */
+  .card{position:relative;z-index:1;width:100%;max-width:520px;background:var(--card);border:1px solid var(--orange);border-radius:20px;padding:30px 26px;box-shadow:0 0 46px rgba(255,106,26,.18);text-align:center;animation:pop .3s ease;margin:auto}
+  @keyframes pop{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:none}}
+  .spark{font-size:28px;margin-bottom:12px;display:inline-block;filter:drop-shadow(0 0 12px rgba(255,106,26,.6))}
+  .card h2{font-size:clamp(18px,3.4vw,23px);font-weight:800;line-height:1.22;margin-bottom:9px}
+  .card h2 .y{color:var(--orange)}
+  .card .hint{color:var(--muted);font-size:13.5px;margin-bottom:22px;line-height:1.45}
+
+  /* opções (quiz / dispositivo) */
+  .opts{display:flex;flex-direction:column;gap:10px;text-align:left}
+  .opt{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;font-size:15px;font-weight:600;color:#fff;transition:all .16s}
+  .opt:hover{border-color:var(--orange);background:rgba(255,106,26,.07);transform:translateX(3px)}
+  .opt .ic{width:27px;height:27px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+  .ic-yes{background:rgba(34,197,94,.15)}.ic-no{background:rgba(239,68,68,.15)}.ic-rocket{background:rgba(255,106,26,.15)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left}
+  .dev{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;transition:all .16s}
+  .dev:hover{border-color:var(--orange);background:rgba(255,106,26,.08);transform:translateY(-2px)}
+  .dev .dic{width:40px;height:40px;border-radius:10px;background:rgba(255,106,26,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .dev .dic svg{width:21px;height:21px;stroke:var(--orange)}
+  .dev .dt b{display:block;font-size:14px;margin-bottom:1px}.dev .dt span{font-size:12px;color:var(--muted)}
+
+  /* progresso */
+  .prog{max-width:520px;width:100%;margin:16px auto 0;display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+  .prog .track{flex:1;height:5px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden}
+  .prog .fill{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--orange-2));border-radius:99px;transition:width .4s ease}
+  .prog .lbl{font-size:11.5px;color:var(--muted);min-width:58px;text-align:right}
+
+  /* ===== REVEAL (o que você recebe) ===== */
+  .deliver{display:grid;grid-template-columns:1fr 1fr;gap:9px;text-align:left;margin-bottom:16px}
+  .dchip{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:11px;padding:11px 12px}
+  .dchip .e{font-size:18px}
+  .dchip b{font-size:13px;display:block}.dchip span{font-size:11px;color:var(--muted)}
+  .stats{display:flex;justify-content:center;gap:0;background:linear-gradient(90deg,var(--orange-deep),var(--orange));border-radius:12px;padding:12px 8px;margin-bottom:20px;color:#160a00}
+  .stats .s{flex:1;text-align:center;position:relative}
+  .stats .s + .s::before{content:'';position:absolute;left:0;top:15%;height:70%;width:1px;background:rgba(0,0,0,.2)}
+  .stats .n{font-size:20px;font-weight:800;line-height:1}
+  .stats .l{font-size:10.5px;font-weight:600;margin-top:2px}
+
+  /* ===== PLANOS (compactos, em etapa) ===== */
+  .plans{display:flex;flex-direction:column;gap:10px;text-align:left}
+  .plan{position:relative;border:1px solid var(--border);border-radius:13px;padding:14px 16px;cursor:pointer;transition:all .16s;background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .plan:hover{border-color:var(--orange);background:rgba(255,106,26,.06)}
+  .plan.best{border-color:var(--orange);box-shadow:0 0 22px rgba(255,106,26,.18)}
+  .plan .pl-l b{font-size:15px;display:block}
+  .plan .pl-l span{font-size:11.5px;color:var(--muted)}
+  .plan .pl-l .off{display:inline-block;margin-top:4px;background:rgba(255,106,26,.16);color:var(--orange-2);font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:99px}
+  .plan .pl-r{text-align:right;flex-shrink:0}
+  .plan .pl-r .from{font-size:11px;color:var(--muted);text-decoration:line-through}
+  .plan .pl-r .price{font-size:21px;font-weight:800;line-height:1}
+  .plan .pl-r .price small{font-size:12px}
+  .plan .ribbon{position:absolute;top:-9px;left:14px;background:linear-gradient(135deg,var(--orange),var(--orange-deep));color:#fff;font-size:10px;font-weight:800;padding:2px 9px;border-radius:99px}
+
+  /* listas passo-a-passo / apps */
+  .steps{text-align:left}
+  .step{display:flex;gap:11px;align-items:flex-start;margin-bottom:10px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:11px;padding:12px 14px}
+  .step .num{width:26px;height:26px;border-radius:50%;background:rgba(255,106,26,.15);color:var(--orange);font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+  .step .st b{display:block;font-size:13.5px;margin-bottom:2px}.step .st span{font-size:12.5px;color:var(--muted);line-height:1.45}
+  .app{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:all .16s;text-align:left}
+  .app:hover{border-color:var(--orange);background:rgba(255,106,26,.07);transform:translateX(3px)}
+  .app b{display:block;font-size:15px}.app span{font-size:12px;color:var(--muted)}
+  .fallback{background:rgba(255,106,26,.08);border:1px solid var(--border);border-radius:11px;padding:12px 14px;text-align:left;margin-bottom:14px}
+  .fallback b{display:block;color:var(--orange);font-size:13px;margin-bottom:3px}.fallback span{font-size:12.5px;color:var(--muted);line-height:1.45}
+
+  /* form */
+  .form{display:flex;flex-direction:column;gap:10px;text-align:left}
+  .form input{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:11px;padding:13px 14px;font-size:15px;color:#fff;outline:none}
+  .form input:focus{border-color:var(--orange)}.form input::placeholder{color:#6b6178}
+  .err{color:var(--red);font-size:12.5px;min-height:15px;margin:-3px 0 0}
+  .spinner{width:38px;height:38px;border:4px solid rgba(255,106,26,.25);border-top-color:var(--orange);border-radius:50%;margin:8px auto 0;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .back{margin-top:18px;background:transparent;border:1px solid rgba(255,255,255,.14);color:var(--muted);padding:9px 15px;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:600}
+  .back:hover{border-color:var(--muted)}
+  .mt{margin-top:14px}
+
+  @media(max-width:560px){
+    .grid2,.deliver{grid-template-columns:1fr}
+    .card{padding:26px 20px}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span>🔥 PROMOÇÃO ENCERRA EM:</span>
+  <span class="timer" id="timer">23h 46m 30s</span>
+  <span>— garanta seu desconto!</span>
+</div>
+
+<div class="posters" id="posters"></div>
+
+<!-- ENTRADA -->
+<div id="home" class="stage">
+  <div class="hero">
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div><br>
+    <div class="badge">👥 +12 mil clientes <span class="stars">★★★★★</span></div>
+    <h1>Descubra <span class="y">o plano ideal</span> pra você em 30 segundos 📺</h1>
+    <p class="lead">Responda 3 perguntas rápidas e veja como a HyperFlick <span class="hl">reúne tudo num app só</span>.</p>
+    <button class="btn btn-primary" onclick="startQuiz()">Começar 🚀</button>
+    <p class="micro">⏱ Leva 30 segundos • 100% grátis</p>
+  </div>
+</div>
+
+<!-- FLUXO (etapas) -->
+<div id="flow" class="stage hidden">
+  <div class="card" id="card"></div>
+  <div class="prog" id="prog"><div class="track"><div class="fill" id="fill"></div></div><div class="lbl" id="plbl"></div></div>
+</div>
+
+<script src="/funnel.js"></script>
+</body>
+</html>
