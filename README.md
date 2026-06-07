@@ -36,8 +36,9 @@ Edite o `.env`:
 | `UAZAPI_URL` | servidor uazapi (ex: `https://free.uazapi.com` ou seu self-hosted) |
 | `UAZAPI_ADMIN_TOKEN` | admin token da sua conta uazapi (cria/gerencia instâncias) |
 | `PUBLIC_URL` | domínio público (usado no webhook). Local: use [ngrok](https://ngrok.com) |
-| `IPTV_PANEL_URL` | DNS/URL do seu painel que o cliente coloca no app |
-| `TEST_DURATION_HOURS` | duração do teste grátis |
+| `PANEL_CHATBOT_URL` | endpoint de chatbot do painel (uhdpainel) que **gera o teste** e retorna usuário/senha |
+| `IPTV_PANEL_URL` | DNS/URL de fallback (se o painel não devolver o DNS) |
+| `TEST_DURATION_HOURS` | duração do teste (fallback, se o painel não devolver a validade) |
 | `PRICE_*` | preços dos planos |
 | `CRM_ADMIN_KEY` | senha para entrar no painel `/crm` |
 
@@ -100,10 +101,16 @@ Funil (quiz + prova visual) → escolhe plano → instala o app
 CRM: acompanha conversa, marca Ganho (gera cobrança), Perdido ou Follow-up.
 ```
 
-## Integrar com seu painel IPTV (provisionamento real)
+## Provisionamento do teste (painel uhdpainel)
 
-O teste hoje gera credenciais de exemplo em [`server/lib/helpers.js`](server/lib/helpers.js) (`genTestCredentials`).
-Para criar o teste de verdade no seu painel (Xtream/Sigma/etc.), troque essa função por uma chamada à API do seu painel em [`server/lib/service.js`](server/lib/service.js) (`generateTestForLead`).
+O teste é criado **de verdade** no painel via o endpoint de chatbot configurado em `PANEL_CHATBOT_URL`
+([`server/lib/panel.js`](server/lib/panel.js)). O painel responde com `username`, `password`, `dns`,
+validade e `payUrl`. Em seguida o sistema:
+
+1. salva usuário, senha, DNS, validade, link de pagamento e o **app instalado** no CRM;
+2. envia as credenciais no WhatsApp do cliente via uazapi (template em `settings.template_teste`).
+
+Se `PANEL_CHATBOT_URL` não estiver configurado, cai num gerador local de exemplo (para testes).
 
 ## Estrutura
 

@@ -43,16 +43,17 @@ router.post('/', async (req, res) => {
       lead = data;
     }
 
+    // Gera o teste e envia no WhatsApp. NÃO retorna credenciais ao front
+    // (elas vão apenas para o WhatsApp do cliente).
     let test = null;
     if (b.generateTest !== false) {
-      const r = await generateTestForLead(lead);
-      test = {
-        username: r.credentials.username,
-        password: r.credentials.password,
-        expiresAt: r.expires,
-        whatsappSent: r.whatsappSent,
-        whatsappError: r.error,
-      };
+      try {
+        const r = await generateTestForLead(lead);
+        test = { whatsappSent: r.whatsappSent };
+      } catch (e) {
+        console.error('generateTest (funil):', e.message);
+        test = { whatsappSent: false, pending: true };
+      }
     }
 
     res.json({ ok: true, id: lead.id, test });

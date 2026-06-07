@@ -30,6 +30,9 @@ create table if not exists leads (
   source          text default 'funil',
   test_username   text,
   test_password   text,
+  test_dns        text,
+  test_package    text,
+  pay_url         text,
   test_expires_at timestamptz,
   last_contact_at timestamptz,
   lost_reason     text,
@@ -44,6 +47,11 @@ create index if not exists leads_created_idx on leads (created_at desc);
 drop trigger if exists trg_leads_updated on leads;
 create trigger trg_leads_updated before update on leads
 for each row execute function set_updated_at();
+
+-- Migração para bases já criadas (idempotente)
+alter table leads add column if not exists test_dns     text;
+alter table leads add column if not exists test_package text;
+alter table leads add column if not exists pay_url      text;
 
 -- ============================================================
 -- PAYMENTS  (cobranças / financeiro — quem pagou, quem não)

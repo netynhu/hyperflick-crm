@@ -23,6 +23,12 @@ export const config = {
     panelUrl: process.env.IPTV_PANEL_URL || '',
   },
 
+  // Painel IPTV (uhdpainel) — gera o teste real via endpoint de chatbot
+  panel: {
+    chatbotUrl: process.env.PANEL_CHATBOT_URL || '',
+    trigger: process.env.PANEL_TRIGGER || 'teste',
+  },
+
   prices: {
     mensal: num(process.env.PRICE_MENSAL, 19.9),
     semestral: num(process.env.PRICE_SEMESTRAL, 79.9),

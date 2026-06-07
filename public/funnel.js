@@ -290,14 +290,14 @@ function renderThanks(name, test, error) {
   const first = name.split(' ')[0];
   const sent = test && test.whatsappSent;
   const wa = SUPPORT_WHATSAPP && SUPPORT_WHATSAPP !== '5500000000000'
-    ? `<a class="btn btn-primary btn-block mt" href="https://wa.me/${SUPPORT_WHATSAPP}" target="_blank">📲 Falar no WhatsApp</a>` : '';
+    ? `<a class="btn btn-primary btn-block mt" href="https://wa.me/${SUPPORT_WHATSAPP}" target="_blank">📲 Abrir meu WhatsApp</a>` : '';
   paint(`
-    <div class="spark">🎉</div>
-    <h2>Tudo certo, ${first}!</h2>
+    <div class="spark">📲</div>
+    <h2>Tudo certo, ${first}! <span class="y">Confira seu WhatsApp</span></h2>
     <p class="hint">${sent
-      ? 'Seus dados de acesso já foram enviados no seu WhatsApp. Abra o app, faça login e aproveite! 🧡'
-      : 'Recebemos seu cadastro! Em instantes nossa equipe envia seu acesso no WhatsApp. 🧡'}</p>
-    ${test && test.username ? `<div class="fallback" style="text-align:center"><b>Seu acesso de teste</b><span>Usuário: <b style="color:#fff">${test.username}</b> · Senha: <b style="color:#fff">${test.password}</b></span></div>` : ''}
+      ? `Acabamos de enviar seu <b style="color:var(--orange-2)">usuário, senha e link de acesso</b> no WhatsApp que você informou. Abra o ${flow.app || 'app'}, faça login e aproveite! 🧡`
+      : 'Recebemos seu cadastro! Em instantes enviamos seu acesso de teste no WhatsApp que você informou. 🧡'}</p>
+    <div class="fallback" style="text-align:center"><b>👉 Olhe a conversa no seu WhatsApp</b><span>Se não chegar em 1 minuto, confira sua caixa de mensagens ou chame o suporte.</span></div>
     ${wa}
     <button class="back" onclick="restartAll()">← Início</button>`);
 }
