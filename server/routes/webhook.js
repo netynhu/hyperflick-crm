@@ -4,8 +4,15 @@ import { hasSupabase } from '../supabase.js';
 import { normalizePhone } from '../lib/helpers.js';
 import { logMessage, sendWhatsApp } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
+import { deliverPixToLead } from '../lib/followup.js';
 
 const router = Router();
+
+// Detecta intenção de compra na mensagem do cliente
+function isBuyIntent(t) {
+  const s = (t || '').toLowerCase();
+  return /(quero comprar|comprar|quero assinar|assinar|assinatura|quero pagar|pagar|como pago|como assino|como faço pra assinar|adquirir|renovar|me manda o pix|manda o pix|quero o pix|quero pix|gerar pix|quero o plano|vou querer|quero sim|fechar)/.test(s);
+}
 
 // Extrai telefone + texto de forma tolerante (o payload da uazapi pode variar)
 function parseInbound(body) {
@@ -32,14 +39,25 @@ router.post('/uazapi', async (req, res) => {
     if (fromMe || !phone) return;
 
     // encontra o lead; se não existir, cria como novo lead vindo do WhatsApp
-    let { data: lead } = await sb().from('leads').select('id,stage').eq('phone', phone).maybeSingle();
+    let { data: lead } = await sb().from('leads').select('id,stage,name,phone,plan').eq('phone', phone).maybeSingle();
     if (!lead) {
       const { data } = await sb().from('leads').insert({
         name: name || `Contato ${phone.slice(-4)}`, phone, stage: 'lead', source: 'whatsapp',
-      }).select('id,stage').single();
+      }).select('id,stage,name,phone,plan').single();
       lead = data;
     }
     await logMessage({ leadId: lead?.id, phone, direction: 'in', body: text, messageId });
+
+    // Gatilho de compra: cliente demonstrou intenção → dispara o Pix
+    if (lead && isBuyIntent(text)) {
+      try {
+        const nome = (lead.name || '').split(' ')[0];
+        await deliverPixToLead(lead, `${nome}, show! 🧡 Bora liberar seu acesso completo da HyperFlick. Aqui está seu Pix:`);
+        if (lead.stage === 'lead' || lead.stage === 'testando') {
+          await sb().from('leads').update({ stage: 'followup' }).eq('id', lead.id);
+        }
+      } catch (e) { console.error('buy-intent pix', e.message); }
+    }
   } catch (err) {
     console.error('webhook uazapi', err.message);
   }

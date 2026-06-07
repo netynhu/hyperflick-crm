@@ -3,7 +3,7 @@ import { sb } from '../supabase.js';
 import { requireAdmin } from '../middleware.js';
 import { normalizePhone, planPrice, planMonths } from '../lib/helpers.js';
 import { generateTestForLead, sendWhatsApp } from '../lib/service.js';
-import { sendPixForLead } from '../lib/followup.js';
+import { sendPixForLead, deliverPixToLead } from '../lib/followup.js';
 
 const router = Router();
 
@@ -32,6 +32,27 @@ router.post('/', async (req, res) => {
 
     // upsert por telefone (não duplica lead que voltou)
     const { data: existing } = await sb().from('leads').select('*').eq('phone', phone).maybeSingle();
+
+    // Número já cadastrado E que JÁ recebeu teste → não gera outro: avisa e manda comprar
+    if (existing && existing.test_username) {
+      const { data: lead } = await sb().from('leads')
+        .update({ name, plan: payload.plan || existing.plan, app: payload.app || existing.app })
+        .eq('id', existing.id).select().single();
+      const nome = name.split(' ')[0];
+      let whatsappSent = false;
+      try {
+        await deliverPixToLead(lead, `${nome}, vi que você já testou a HyperFlick! 🧡 Que tal liberar seu acesso completo agora? Aqui está seu Pix:`);
+        whatsappSent = true;
+      } catch (e) {
+        console.error('alreadyRegistered pix:', e.message);
+        try {
+          await sendWhatsApp({ leadId: lead.id, phone, text: `${nome}, vi que você já testou a HyperFlick! 🧡 Quer liberar seu acesso completo? Me chama aqui que te passo como assinar.` });
+          whatsappSent = true;
+        } catch (_) { /* sem instância */ }
+      }
+      return res.json({ ok: true, id: lead.id, alreadyRegistered: true, test: { whatsappSent } });
+    }
+
     let lead;
     if (existing) {
       const { data } = await sb().from('leads')

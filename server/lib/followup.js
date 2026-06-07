@@ -37,6 +37,30 @@ export async function sendPixForLead(lead) {
   return { plan, amount, pix, payment };
 }
 
+// Entrega um Pix ao lead: reusa um Pix pendente recente (<60min) ou cria um novo,
+// e envia a mensagem no WhatsApp. Usado pelos gatilhos de compra e pelo "já cadastrado".
+export async function deliverPixToLead(lead, intro) {
+  const { data: recent } = await sb().from('payments').select('*')
+    .eq('lead_id', lead.id).eq('status', 'pendente').not('pix_code', 'is', null)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+  let plan, amount, pix;
+  const reusar = recent && (Date.now() - new Date(recent.created_at).getTime() < 60 * 60 * 1000);
+  if (reusar) {
+    plan = recent.plan; amount = recent.amount;
+    pix = { pixCode: recent.pix_code, ticketUrl: recent.pix_ticket_url };
+  } else {
+    ({ plan, amount, pix } = await sendPixForLead(lead));
+  }
+
+  const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  const nome = (lead.name || '').split(' ')[0];
+  const head = intro || `${nome}, perfeito! Aqui está o Pix do seu *Plano ${plan}* (R$ ${valor}):`;
+  const text = `${head}\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que o Pix cair, seu acesso é *liberado na hora*! 🚀`;
+  await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+  return { plan, amount, pix };
+}
+
 function pixMessage({ nome, plan, amount, pix, kind, exp }) {
   const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const head = kind === 'expiring'

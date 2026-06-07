@@ -316,19 +316,33 @@ async function submitLead() {
     const r = await fetch('/api/leads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Erro ao registrar.');
-    renderThanks(name, data.test);
+    renderThanks(name, data.test, null, data.alreadyRegistered);
   } catch (e) { renderThanks(name, null, e.message); }
 }
 function renderLoading() {
   setProg(100, 'Liberando...');
   paint(`<div class="spark">⚡</div><h2>Liberando seu teste...</h2><p class="hint">Gerando seu acesso e enviando no WhatsApp 👇</p><div class="spinner"></div>`);
 }
-function renderThanks(name, test, error) {
+function renderThanks(name, test, error, alreadyRegistered) {
   setProg(100, 'Concluído ✓');
   const first = name.split(' ')[0];
   const sent = test && test.whatsappSent;
   const wa = SUPPORT_WHATSAPP && SUPPORT_WHATSAPP !== '5500000000000'
     ? `<a class="btn btn-primary btn-block mt" href="https://wa.me/${SUPPORT_WHATSAPP}" target="_blank">📲 Abrir meu WhatsApp</a>` : '';
+
+  if (alreadyRegistered) {
+    paint(`
+      <div class="spark">🧡</div>
+      <h2>${first}, você já testou a <span class="y">HyperFlick</span>!</h2>
+      <p class="hint">${sent
+        ? 'Acabamos de te enviar no WhatsApp como <b style="color:var(--orange-2)">liberar seu acesso completo</b>. Corre lá! 🚀'
+        : 'Esse número já fez um teste. Chama a gente no WhatsApp pra assinar e liberar tudo. 🧡'}</p>
+      <div class="fallback" style="text-align:center"><b>👉 Olhe a conversa no seu WhatsApp</b><span>Seu Pix de assinatura está lá.</span></div>
+      ${wa}
+      <button class="back" onclick="restartAll()">← Início</button>`);
+    return;
+  }
+
   paint(`
     <div class="spark">📲</div>
     <h2>Tudo certo, ${first}! <span class="y">Confira seu WhatsApp</span></h2>

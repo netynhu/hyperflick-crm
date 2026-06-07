@@ -61,8 +61,7 @@ export function buildTestMessage({ app, name, username, password, expiresLabel, 
       `📲 *Como acessar no ${appName}:*\n` +
       `Adicione a lista por um dos *links M3U* abaixo. *Teste os dois* e use o que abrir certinho no seu aparelho:\n\n` +
       `🔗 *Opção 1 (M3U .TS):*\n${p.m3uTs}\n\n` +
-      `🔗 *Opção 2 (M3U .MPEGTS):*\n${p.m3uMpegts}\n\n` +
-      `_(Usuário ${username} / Senha ${password}, caso o app peça separado.)_`;
+      `🔗 *Opção 2 (M3U .MPEGTS):*\n${p.m3uMpegts}`;
   } else {
     // xc / universal
     body =
