@@ -4,9 +4,10 @@ import { sb } from '../supabase.js';
 import { uazapi } from '../uazapi.js';
 import { config } from '../config.js';
 import {
-  genTestCredentials, renderTemplate, formatDateTimeBR, normalizePhone,
+  genTestCredentials, formatDateTimeBR, normalizePhone,
 } from './helpers.js';
 import { generatePanelTest } from './panel.js';
+import { buildTestMessage } from './message.js';
 
 // Retorna a instância conectada a usar (default primeiro, senão a primeira conectada).
 export async function getActiveInstance() {
@@ -85,17 +86,15 @@ export async function generateTestForLead(lead) {
     test_expires_at: expires.toISOString(),
   }).eq('id', lead.id);
 
-  // 3) monta a mensagem (template HyperFlick em settings) e envia via uazapi
-  const { data: setting } = await sb()
-    .from('settings').select('value').eq('key', 'template_teste').maybeSingle();
-  const tpl = setting?.value?.text || 'Olá {nome}! Seu teste HyperFlick: usuário {usuario}, senha {senha}.';
-  const text = renderTemplate(tpl, {
-    nome: (lead.name || '').split(' ')[0],
-    app: lead.app || 'seu app de IPTV',
-    url: test.dns || config.test.panelUrl || 'enviado pelo suporte',
-    usuario: test.username,
-    senha: test.password,
-    validade: test.expiresLabel || formatDateTimeBR(expires),
+  // 3) monta a mensagem CONFORME O APP escolhido (extrai do reply do painel) e envia via uazapi
+  const text = buildTestMessage({
+    app: lead.app,
+    name: lead.name,
+    username: test.username,
+    password: test.password,
+    expiresLabel: test.expiresLabel || formatDateTimeBR(expires),
+    reply: test.reply,
+    dns: test.dns,
   });
 
   let whatsappSent = false, error = null;
