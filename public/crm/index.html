@@ -417,10 +417,20 @@ async function finDespesas() {
     </div>
     <div class="section-h">Despesas — total ${money(total)}</div>
     <table>
-      <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Data</th><th></th></tr></thead>
-      <tbody>${rows.length ? rows.map(e => `<tr><td>${esc(e.description)}</td><td>${esc(e.category || '—')}</td><td>${money(e.amount)}</td><td>${fmtDate(e.date)}</td><td style="text-align:right"><button class="btn sm red" onclick="delExpense('${e.id}')">Excluir</button></td></tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted)">Nenhuma despesa.</td></tr>'}</tbody>
+      <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Data</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.length ? rows.map(e => `<tr>
+        <td>${esc(e.description)}</td><td>${esc(e.category || '—')}</td><td>${money(e.amount)}</td><td>${fmtDate(e.date)}</td>
+        <td><span class="pill ${e.status === 'pago' ? 'pago' : 'pendente'}">${e.status || 'pendente'}</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          ${e.status !== 'pago' ? `<button class="btn sm green" onclick="payExpense('${e.id}')">Pagar</button>` : `<button class="btn sm ghost" onclick="reopenExpense('${e.id}')">Reabrir</button>`}
+          <button class="btn sm ghost" onclick="nextExpense('${e.id}')">Próximo mês</button>
+          <button class="btn sm red" onclick="delExpense('${e.id}')">Excluir</button>
+        </td></tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma despesa.</td></tr>'}</tbody>
     </table>`;
 }
+async function payExpense(id) { try { await api('/expenses/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'pago' }) }); toast('Despesa paga'); finDespesas(); } catch (e) { toast('Erro: ' + e.message); } }
+async function reopenExpense(id) { try { await api('/expenses/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'pendente' }) }); finDespesas(); } catch (e) { toast('Erro: ' + e.message); } }
+async function nextExpense(id) { try { await api('/expenses/' + id + '/next', { method: 'POST', body: JSON.stringify({}) }); toast('Despesa criada para o próximo mês'); finDespesas(); } catch (e) { toast('Erro: ' + e.message); } }
 async function addExpense() {
   const description = document.getElementById('exDesc').value.trim(); const amount = document.getElementById('exAmount').value;
   if (!description || !amount) { toast('Informe descrição e valor.'); return; }

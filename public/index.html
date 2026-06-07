@@ -152,6 +152,17 @@
   .back:hover{border-color:rgba(255,255,255,.25);color:#fff}
   .mt{margin-top:14px}
 
+  /* ===== INTERAÇÕES ===== */
+  .opt.sel,.dev.sel,.app.sel{border-color:var(--orange)!important;background:rgba(255,122,26,.16)!important;box-shadow:0 12px 28px -12px var(--glow);transform:scale(.99)}
+  .plan.sel{border-color:var(--orange)!important;background:linear-gradient(135deg,rgba(255,122,26,.2),rgba(255,255,255,.05))!important}
+  .opt .ic,.dev .dic{transition:transform .2s}
+  .opt:hover .ic,.dev:hover .dic{transform:scale(1.08)}
+  @keyframes glowpulse{0%,100%{box-shadow:0 12px 32px -8px var(--glow),inset 0 1px 0 rgba(255,255,255,.3)}50%{box-shadow:0 16px 46px -4px rgba(255,138,58,.72),inset 0 1px 0 rgba(255,255,255,.3)}}
+  #home .btn-primary{animation:glowpulse 2.6s ease-in-out infinite}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  .hero .brand .logo{animation:floaty 4s ease-in-out infinite}
+  .stats .n{font-variant-numeric:tabular-nums}
+
   @media(max-width:560px){
     .grid2,.deliver{grid-template-columns:1fr}
     .card{padding:28px 20px}

@@ -31,6 +31,36 @@ router.post('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Marca paga / reabre (status: pago | pendente)
+router.patch('/:id', async (req, res) => {
+  try {
+    const upd = {};
+    if ('status' in req.body) {
+      upd.status = req.body.status;
+      upd.paid_at = req.body.status === 'pago' ? new Date().toISOString() : null;
+    }
+    const { data, error } = await sb().from('expenses').update(upd).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Duplica a despesa para o próximo mês (mesmo dia, status pendente)
+router.post('/:id/next', async (req, res) => {
+  try {
+    const { data: exp, error } = await sb().from('expenses').select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    const d = new Date((exp.date || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+    d.setMonth(d.getMonth() + 1);
+    const { data, error: e2 } = await sb().from('expenses').insert({
+      description: exp.description, amount: exp.amount, category: exp.category,
+      date: d.toISOString().slice(0, 10), status: 'pendente',
+    }).select().single();
+    if (e2) throw e2;
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const { error } = await sb().from('expenses').delete().eq('id', req.params.id);

@@ -93,9 +93,13 @@ create table if not exists expenses (
   amount      numeric(10,2) not null default 0,
   category    text,
   date        date not null default current_date,
+  status      text default 'pendente',   -- pendente | pago
+  paid_at     timestamptz,
   created_at  timestamptz default now()
 );
 create index if not exists expenses_date_idx on expenses (date);
+alter table expenses add column if not exists status  text default 'pendente';
+alter table expenses add column if not exists paid_at timestamptz;
 
 drop trigger if exists trg_payments_updated on payments;
 create trigger trg_payments_updated before update on payments

@@ -35,6 +35,23 @@ function setProg(pct, label) {
    o passo 6 com "dispositivo", por ser a mesma decisão. */
 const TOTAL_STEPS = 10;
 function setStep(n) { setProg(Math.round((n / TOTAL_STEPS) * 100), `Passo ${n} de ${TOTAL_STEPS}`); }
+
+/* Feedback de seleção: destaca o item clicado e só então avança */
+function flashSel(then) {
+  const el = window.event && window.event.currentTarget;
+  if (el && el.classList) { el.classList.add('sel'); setTimeout(then, 210); }
+  else then();
+}
+/* Contagem animada dos números */
+function countUp(el) {
+  const to = +el.dataset.to || 0, pre = el.dataset.pre || '', suf = el.dataset.suf || '';
+  const steps = 26; let i = 0;
+  const t = setInterval(() => {
+    i++; const v = Math.min(to, Math.round(to * i / steps));
+    el.textContent = pre + v.toLocaleString('pt-BR') + suf;
+    if (i >= steps) { clearInterval(t); el.textContent = pre + to.toLocaleString('pt-BR') + suf; }
+  }, 24);
+}
 function restartAll() { for (const k in answers) delete answers[k]; show('home'); }
 function paint(html) { const c = card(); c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; c.innerHTML = html; }
 
@@ -69,8 +86,7 @@ function renderQuestion(i) {
 }
 function answer(qi, oi) {
   answers[QUESTIONS[qi].key] = QUESTIONS[qi].opts[oi].v;
-  if (qi + 1 < QUESTIONS.length) renderQuestion(qi + 1);
-  else renderReveal();
+  flashSel(() => { if (qi + 1 < QUESTIONS.length) renderQuestion(qi + 1); else renderReveal(); });
 }
 function dorHeadline() {
   const map = { trava: 'Chega de travar na hora do gol ⚽', caro: 'Muito mais conteúdo pagando bem menos 💰', espalhado: 'Tudo num app só, sem pular entre vários 📱', suporte: 'Suporte humano e rápido no WhatsApp 🤝' };
@@ -94,12 +110,13 @@ function renderReveal() {
     <p class="hint">Tudo isso num app só, em qualidade até 4K 👇</p>
     <div class="deliver">${DELIVER.map(d => `<div class="dchip"><span class="e">${d.e}</span><div><b>${d.b}</b><span>${d.s}</span></div></div>`).join('')}</div>
     <div class="stats">
-      <div class="s"><div class="n">+800</div><div class="l">canais</div></div>
-      <div class="s"><div class="n">+60mil</div><div class="l">filmes e séries</div></div>
-      <div class="s"><div class="n">+500</div><div class="l">novelas</div></div>
+      <div class="s"><div class="n" data-to="800" data-pre="+">+800</div><div class="l">canais</div></div>
+      <div class="s"><div class="n" data-to="60" data-pre="+" data-suf="mil">+60mil</div><div class="l">filmes e séries</div></div>
+      <div class="s"><div class="n" data-to="500" data-pre="+">+500</div><div class="l">novelas</div></div>
     </div>
     <button class="btn btn-primary btn-block" onclick="renderPlans()">Ver meu plano ideal →</button>
     <button class="back" onclick="renderQuestion(${QUESTIONS.length - 1})">← Voltar</button>`);
+  setTimeout(() => document.querySelectorAll('.stats .n').forEach(countUp), 120);
 }
 
 /* ===================== PLANOS (etapa) ===================== */
@@ -116,7 +133,7 @@ function renderPlans() {
     <p class="hint">Sem fidelidade • Ativação imediata • Cancele quando quiser</p>
     <div class="plans">
       ${PLANS.map(p => `
-        <div class="plan ${p.best ? 'best' : ''}" onclick="startTest('${p.id}')">
+        <div class="plan ${p.best ? 'best' : ''}" onclick="flashSel(()=>startTest('${p.id}'))">
           ${p.best ? '<span class="ribbon">⭐ Mais escolhido</span>' : ''}
           <div class="pl-l"><b>${p.name}</b><span>${p.sub}</span>${p.off ? `<br><span class="off">🎁 ${p.off}</span>` : ''}</div>
           <div class="pl-r">${p.from ? `<div class="from">R$ ${p.from}</div>` : ''}<div class="price">R$ ${p.price}<small>,${p.cents}</small></div></div>
@@ -194,7 +211,7 @@ function renderDevice() {
     <div class="spark">🎁</div>
     <h2>Seu <span class="y">teste grátis</span> está liberado!</h2>
     <p class="hint">Onde você vai assistir? 👇</p>
-    <div class="grid2">${DEVICES.map(d => `<div class="dev" onclick="pickDevice('${d.id}')"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d.svg}</svg></div><div class="dt"><b>${d.name}</b><span>${d.sub}</span></div></div>`).join('')}</div>
+    <div class="grid2">${DEVICES.map(d => `<div class="dev" onclick="flashSel(()=>pickDevice('${d.id}'))"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d.svg}</svg></div><div class="dt"><b>${d.name}</b><span>${d.sub}</span></div></div>`).join('')}</div>
     <button class="back" onclick="renderPlans()">← Voltar aos planos</button>`);
 }
 function pickDevice(id) {
@@ -209,7 +226,7 @@ function renderTvBrand() {
     <div class="spark">📺</div>
     <h2>Qual a marca da sua Smart TV?</h2>
     <p class="hint">Cada marca usa um app diferente 👇</p>
-    <div class="grid2">${TV_BRANDS.map(b => `<div class="dev" onclick="pickBrand('${b.id}')"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="m17 2-5 5-5-5"/></svg></div><div class="dt"><b>${b.name}</b><span>${b.sub}</span></div></div>`).join('')}</div>
+    <div class="grid2">${TV_BRANDS.map(b => `<div class="dev" onclick="flashSel(()=>pickBrand('${b.id}'))"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="m17 2-5 5-5-5"/></svg></div><div class="dt"><b>${b.name}</b><span>${b.sub}</span></div></div>`).join('')}</div>
     <button class="back" onclick="renderDevice()">← Voltar</button>`);
 }
 function pickBrand(id) { flow.brand = id; renderApp(); }
@@ -220,8 +237,8 @@ function renderMobileOs() {
     <h2>Seu celular é Android ou iPhone?</h2>
     <p class="hint">Pra indicar o app certo 👇</p>
     <div class="grid2">
-      <div class="dev" onclick="pickBrand('android')"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div><div class="dt"><b>Android</b><span>Samsung, Xiaomi...</span></div></div>
-      <div class="dev" onclick="pickBrand('iphone')"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div><div class="dt"><b>iPhone / iPad</b><span>iOS</span></div></div>
+      <div class="dev" onclick="flashSel(()=>pickBrand('android'))"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div><div class="dt"><b>Android</b><span>Samsung, Xiaomi...</span></div></div>
+      <div class="dev" onclick="flashSel(()=>pickBrand('iphone'))"><div class="dic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></div><div class="dt"><b>iPhone / iPad</b><span>iOS</span></div></div>
     </div>
     <button class="back" onclick="renderDevice()">← Voltar</button>`);
 }
@@ -230,7 +247,7 @@ function renderApp() {
   const key = `${flow.device}:${flow.brand}`;
   const rule = APP_RULES[key] || APP_RULES[`${flow.device}:_`];
   flow.app = rule.apps[0];
-  const apps = rule.apps.map(a => `<div class="app" onclick="selectApp('${a}')"><div><b>${a}</b><span>Toque para instalar</span></div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px;stroke:var(--orange)"><path d="m9 18 6-6-6-6"/></svg></div>`).join('');
+  const apps = rule.apps.map(a => `<div class="app" onclick="flashSel(()=>selectApp('${a}'))"><div><b>${a}</b><span>Toque para instalar</span></div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:17px;height:17px;stroke:var(--orange)"><path d="m9 18 6-6-6-6"/></svg></div>`).join('');
   const fb = rule.fallback ? `<div class="fallback"><b>Não encontrou na loja?</b><span>Procure por <b style="color:#fff">${rule.fallback}</b> — funciona em outras marcas.</span></div>` : '';
   paint(`
     <div class="spark">📥</div>
