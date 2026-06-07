@@ -31,6 +31,10 @@ function setProg(pct, label) {
   document.getElementById('fill').style.width = pct + '%';
   document.getElementById('plbl').textContent = label || '';
 }
+/* Jornada com 10 etapas reais. A sub-escolha (marca da TV / sistema) compartilha
+   o passo 6 com "dispositivo", por ser a mesma decisão. */
+const TOTAL_STEPS = 10;
+function setStep(n) { setProg(Math.round((n / TOTAL_STEPS) * 100), `Passo ${n} de ${TOTAL_STEPS}`); }
 function restartAll() { for (const k in answers) delete answers[k]; show('home'); }
 function paint(html) { const c = card(); c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; c.innerHTML = html; }
 
@@ -60,8 +64,8 @@ function renderQuestion(i) {
     <h2>${Q.q}</h2>
     <p class="hint">${Q.hint}</p>
     <div class="opts">${Q.opts.map((o, idx) => `<div class="opt" onclick="answer(${i},${idx})"><span class="ic ${o.cls}">${o.ic}</span> ${o.t}</div>`).join('')}</div>
-    ${i > 0 ? `<button class="back" onclick="${i === 0 ? 'restartAll()' : 'renderQuestion(' + (i - 1) + ')'}">← Voltar</button>` : ''}`);
-  setProg(Math.round((i / (QUESTIONS.length + 2)) * 100), `Passo ${i + 1} de ${QUESTIONS.length}`);
+    ${i > 0 ? `<button class="back" onclick="renderQuestion(${i - 1})">← Voltar</button>` : ''}`);
+  setStep(i + 1);
 }
 function answer(qi, oi) {
   answers[QUESTIONS[qi].key] = QUESTIONS[qi].opts[oi].v;
@@ -83,7 +87,7 @@ const DELIVER = [
   { e: '🔞', b: 'Adultos (opcional)', s: 'Com senha de acesso' },
 ];
 function renderReveal() {
-  setProg(Math.round((QUESTIONS.length / (QUESTIONS.length + 2)) * 100), 'Quase lá');
+  setStep(4);
   paint(`
     <div class="spark">🎉</div>
     <h2>${dorHeadline()}</h2>
@@ -105,7 +109,7 @@ const PLANS = [
   { id: 'Anual', name: 'Anual', sub: '12 meses · R$ 10,82/mês', from: '238,80', off: '58% OFF', price: '129', cents: '90', best: false },
 ];
 function renderPlans() {
-  setProg(Math.round(((QUESTIONS.length + 1) / (QUESTIONS.length + 2)) * 100), 'Escolha o plano');
+  setStep(5);
   paint(`
     <div class="spark">💎</div>
     <h2>Escolha seu <span class="y">plano</span></h2>
@@ -167,7 +171,7 @@ function startTest(plan) {
   renderDevice();
 }
 function renderDevice() {
-  setProg(78, 'Onde vai assistir');
+  setStep(6);
   paint(`
     <div class="spark">🎁</div>
     <h2>Seu <span class="y">teste grátis</span> está liberado!</h2>
@@ -182,7 +186,7 @@ function pickDevice(id) {
   flow.brand = '_'; renderApp();
 }
 function renderTvBrand() {
-  setProg(80, 'Marca da TV');
+  setStep(6);
   paint(`
     <div class="spark">📺</div>
     <h2>Qual a marca da sua Smart TV?</h2>
@@ -192,7 +196,7 @@ function renderTvBrand() {
 }
 function pickBrand(id) { flow.brand = id; renderApp(); }
 function renderMobileOs() {
-  setProg(80, 'Sistema');
+  setStep(6);
   paint(`
     <div class="spark">📱</div>
     <h2>Seu celular é Android ou iPhone?</h2>
@@ -204,7 +208,7 @@ function renderMobileOs() {
     <button class="back" onclick="renderDevice()">← Voltar</button>`);
 }
 function renderApp() {
-  setProg(85, 'App recomendado');
+  setStep(7);
   const key = `${flow.device}:${flow.brand}`;
   const rule = APP_RULES[key] || APP_RULES[`${flow.device}:_`];
   flow.app = rule.apps[0];
@@ -219,7 +223,7 @@ function renderApp() {
 }
 function selectApp(app) { flow.app = app; renderInstall(); }
 function renderInstall() {
-  setProg(88, 'Instalação');
+  setStep(8);
   const steps = INSTALL_STEPS[flow.app] || [];
   const html = steps.length
     ? steps.map((s, i) => `<div class="step"><div class="num">${i + 1}</div><div class="st"><b>${s[0]}</b><span>${s[1] || ''}</span></div></div>`).join('')
@@ -233,7 +237,7 @@ function renderInstall() {
     <button class="back" onclick="renderApp()">← Voltar</button>`);
 }
 function renderInstalled() {
-  setProg(92, 'Confirmação');
+  setStep(9);
   paint(`
     <div class="spark">✅</div>
     <h2>Você já instalou o ${flow.app}?</h2>
@@ -245,7 +249,7 @@ function renderInstalled() {
     <button class="back" onclick="renderApp()">← Trocar de app</button>`);
 }
 function renderLeadForm() {
-  setProg(96, 'Quase pronto');
+  setStep(10);
   paint(`
     <div class="spark">🚀</div>
     <h2>Receba seu <span class="y">acesso grátis</span></h2>
@@ -278,11 +282,11 @@ async function submitLead() {
   } catch (e) { renderThanks(name, null, e.message); }
 }
 function renderLoading() {
-  setProg(99, 'Liberando');
+  setProg(100, 'Liberando...');
   paint(`<div class="spark">⚡</div><h2>Liberando seu teste...</h2><p class="hint">Gerando seu acesso e enviando no WhatsApp 👇</p><div class="spinner"></div>`);
 }
 function renderThanks(name, test, error) {
-  setProg(100, 'Pronto!');
+  setProg(100, 'Concluído ✓');
   const first = name.split(' ')[0];
   const sent = test && test.whatsappSent;
   const wa = SUPPORT_WHATSAPP && SUPPORT_WHATSAPP !== '5500000000000'
