@@ -29,23 +29,35 @@ export async function generatePanelTest({ name, phone }) {
     userAgent: 'HyperFlick',
   };
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  const text = await res.text();
-  let d;
-  try { d = JSON.parse(text); } catch { d = {}; }
-
-  if (!res.ok || !d.username) {
-    const e = new Error('O painel não retornou as credenciais do teste.');
-    e.data = d;
+  let res, text;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    text = await res.text();
+  } catch (err) {
+    const e = new Error('Falha ao contatar o painel: ' + err.message);
+    e.code = 'NETWORK';
     throw e;
   }
 
+  let d;
+  try { d = JSON.parse(text); } catch { d = {}; }
+
+  // O painel não gerou credenciais (ex.: HTTP 400 "Você já solicitou um teste").
+  // Não lança exceção — devolve estruturado para o fluxo tratar com elegância.
+  if (!d.username) {
+    return {
+      ok: false,
+      message: d.reply || d.message || 'O painel não gerou um novo teste.',
+      raw: d,
+    };
+  }
+
   return {
+    ok: true,
     username: String(d.username),
     password: String(d.password || ''),
     dns: d.dns || '',

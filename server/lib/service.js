@@ -67,10 +67,35 @@ export async function generateTestForLead(lead) {
   } catch (err) {
     if (err.code === 'NO_PANEL') {
       const creds = genTestCredentials();
-      test = { ...creds, dns: config.test.panelUrl, package: '', payUrl: '', expiresAt: null, expiresLabel: '' };
+      test = { ok: true, ...creds, dns: config.test.panelUrl, package: '', payUrl: '', expiresAt: null, expiresLabel: '' };
     } else {
-      throw err;
+      throw err; // erro de rede → leads.js trata como pendente
     }
+  }
+
+  // 1b) painel NÃO gerou novo teste (ex.: "Você já solicitou um teste").
+  // Move para "testando" e reenvia o acesso que o lead já tem (se houver).
+  if (test && test.ok === false) {
+    await sb().from('leads').update({ stage: 'testando' }).eq('id', lead.id);
+    let text;
+    if (lead.test_username) {
+      text = buildTestMessage({
+        app: lead.app, name: lead.name,
+        username: lead.test_username, password: lead.test_password,
+        expiresLabel: lead.test_expires_at ? formatDateTimeBR(new Date(lead.test_expires_at)) : '',
+        reply: '', dns: lead.test_dns,
+      });
+    } else {
+      text = `Olá ${(lead.name || '').split(' ')[0]}! ${test.message}\n\nQualquer dúvida, é só chamar aqui. 🧡`;
+    }
+    let whatsappSent = false, error = null;
+    try { await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text }); whatsappSent = true; }
+    catch (err) { error = err.message; }
+    return {
+      credentials: { username: lead.test_username, password: lead.test_password },
+      expires: lead.test_expires_at ? new Date(lead.test_expires_at) : null,
+      whatsappSent, error, alreadyRequested: true,
+    };
   }
 
   const expires = test.expiresAt || new Date(Date.now() + config.test.durationHours * 3600 * 1000);

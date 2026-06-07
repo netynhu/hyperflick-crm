@@ -275,7 +275,7 @@ function renderLeadForm() {
     <p class="hint">Os dados do teste chegam no seu WhatsApp 👇</p>
     <div class="form">
       <input id="leadName" type="text" placeholder="Seu nome" autocomplete="name" />
-      <input id="leadPhone" type="tel" placeholder="Seu WhatsApp (com DDD)" autocomplete="tel" inputmode="numeric" />
+      <input id="leadPhone" type="tel" placeholder="WhatsApp com DDD — ex: (11) 91234-5678" autocomplete="tel" inputmode="numeric" maxlength="16" oninput="maskPhone(this)" />
       <p id="leadErr" class="err"></p>
       <button class="btn btn-primary btn-block" id="leadBtn" onclick="submitLead()">🔓 Receber meu acesso grátis</button>
       <p style="font-size:11.5px;color:var(--muted);text-align:center">🔒 Usamos seus dados apenas para liberar o teste.</p>
@@ -283,12 +283,31 @@ function renderLeadForm() {
     <button class="back" onclick="renderInstalled()">← Voltar</button>`);
 }
 
+// Máscara: só dígitos, formata (DD) XXXXX-XXXX, limita a 11 dígitos
+function maskPhone(el) {
+  let d = el.value.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) el.value = d;
+  else if (d.length <= 6) el.value = `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  else if (d.length <= 10) el.value = `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  else el.value = `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
 async function submitLead() {
   const name = (document.getElementById('leadName').value || '').trim();
-  const phoneRaw = (document.getElementById('leadPhone').value || '').replace(/\D/g, '');
   const err = document.getElementById('leadErr');
   if (name.length < 2) { err.textContent = 'Digite seu nome.'; return; }
-  if (phoneRaw.length < 10) { err.textContent = 'Digite um WhatsApp válido com DDD.'; return; }
+
+  // Só DDD + número. Se faltar DDD, avisa e NÃO continua.
+  let digits = (document.getElementById('leadPhone').value || '').replace(/\D/g, '').replace(/^0+/, '');
+  const local = (digits.startsWith('55') && digits.length >= 12) ? digits.slice(2) : digits;
+  if (local.length < 10) {
+    err.textContent = local.length >= 8
+      ? '⚠️ Faltou o DDD! Use DDD + número — ex: (11) 91234-5678'
+      : 'Digite seu WhatsApp com DDD — ex: (11) 91234-5678';
+    return;
+  }
+  if (local.length > 11) { err.textContent = 'Número inválido. Use DDD + número.'; return; }
+  const phoneRaw = local;
   err.textContent = '';
   renderLoading();
 
