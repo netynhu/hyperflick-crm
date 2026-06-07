@@ -13,12 +13,13 @@ import webhook from './routes/webhook.js';
 import settings from './routes/settings.js';
 import cron from './routes/cron.js';
 import expenses from './routes/expenses.js';
+import messages from './routes/messages.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '16mb' }));
 
 // API
 app.use('/api/leads', leads);
@@ -28,6 +29,7 @@ app.use('/api/webhook', webhook);
 app.use('/api/settings', settings);
 app.use('/api/cron', cron);
 app.use('/api/expenses', expenses);
+app.use('/api/messages', messages);
 
 app.get('/api/health', (_req, res) =>
   res.json({ ok: true, warnings: configWarnings() })
@@ -39,6 +41,7 @@ app.get('/api/config', (_req, res) =>
     supabaseUrl: config.supabase.url,
     supabaseAnonKey: config.supabase.anonKey,
     hasAdminKey: Boolean(config.crmAdminKey),
+    prices: config.prices,
   })
 );
 

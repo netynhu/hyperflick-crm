@@ -9,11 +9,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f6f7f9;--panel:#fff;--panel-2:#fafbfc;
-    --ink:#16181d;--ink-2:#3a3d46;--muted:#6b7280;--faint:#9ca3af;
+    --bg:#f4f5f8;--panel:#fff;--panel-2:#f8f9fb;
+    --ink:#15171d;--ink-2:#3a3d46;--muted:#6b7280;--faint:#9ca3af;
     --border:#e8eaee;--border-2:#eef0f3;
     --orange:#f5611e;--orange-deep:#e24f10;--orange-soft:#fff1ea;
     --green:#0f9d58;--green-bg:#e8f6ee;--red:#e5484d;--red-bg:#fdecec;--yellow:#b7791f;--yellow-bg:#fbf3e3;
+    --purple:#7c5cff;
+    --sb:#0e1018;--sb-2:#161a26;--sb-ink:#e7e9ef;--sb-muted:#8b90a0;--sb-hover:#1c2130;
     --sh-sm:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.05);
     --sh-md:0 4px 14px rgba(16,24,40,.08);--sh-lg:0 16px 44px rgba(16,24,40,.16);
   }
@@ -24,39 +26,87 @@
   button{font-family:inherit;cursor:pointer}
   .hidden{display:none!important}
 
-  header{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;padding:12px 26px}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:-.02em;color:var(--ink)}
-  .brand .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#ff8a3a,#f5521e);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px -6px rgba(245,82,30,.5)}
-  .brand .logo svg{width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2}
-  .brand b{color:var(--orange-deep)}
-  nav{display:flex;gap:2px;margin-left:14px}
-  nav button{display:inline-flex;align-items:center;gap:7px;background:transparent;border:none;color:var(--muted);padding:8px 13px;border-radius:9px;font-weight:600;font-size:13.5px;transition:all .15s}
-  nav button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9}
-  nav button:hover{background:var(--border-2);color:var(--ink)}
-  nav button.active{background:var(--orange-soft);color:var(--orange-deep)}
-  .wa-status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-weight:500}
+  /* ---------- LAYOUT: sidebar + content ---------- */
+  .layout{display:flex;min-height:100vh}
+  .sidebar{width:236px;flex:0 0 236px;background:var(--sb);color:var(--sb-ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .sb-brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:17px;letter-spacing:-.02em;padding:20px 20px 14px}
+  .sb-brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#ff8a3a,#f5521e);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px -8px rgba(245,82,30,.7)}
+  .sb-brand .logo svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2}
+  .sb-brand b{color:#ff8a3a}
+  .sb-label{font-size:10.5px;font-weight:700;letter-spacing:1.2px;color:var(--sb-muted);text-transform:uppercase;padding:14px 22px 8px}
+  .sb-nav{display:flex;flex-direction:column;gap:3px;padding:0 12px;flex:1;overflow-y:auto}
+  .sb-nav button{display:flex;align-items:center;gap:12px;background:transparent;border:none;color:var(--sb-muted);padding:10px 12px;border-radius:10px;font-weight:600;font-size:14px;text-align:left;transition:all .15s;width:100%}
+  .sb-nav button svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;flex:0 0 auto}
+  .sb-nav button:hover{background:var(--sb-hover);color:var(--sb-ink)}
+  .sb-nav button.active{background:linear-gradient(135deg,rgba(245,97,30,.22),rgba(245,82,30,.1));color:#fff;box-shadow:inset 0 0 0 1px rgba(245,97,30,.35)}
+  .sb-nav button.active svg{stroke:#ff8a3a}
+  .sb-foot{padding:14px;border-top:1px solid rgba(255,255,255,.06)}
+  .sb-user{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px}
+  .sb-user .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#16a36b,#0f9d58);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;flex:0 0 auto}
+  .sb-user .who{overflow:hidden}
+  .sb-user .who .em{font-size:12.5px;font-weight:600;color:var(--sb-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px}
+  .sb-user .who .st{font-size:11px;color:#3fbf86}
+  .sb-foot .out{margin-top:10px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--sb-2);border:1px solid rgba(255,255,255,.07);color:var(--sb-ink);padding:9px;border-radius:10px;font-weight:600;font-size:13px;transition:.15s}
+  .sb-foot .out:hover{background:var(--sb-hover)}
+  .sb-foot .out svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+
+  .content{flex:1;min-width:0;display:flex;flex-direction:column}
+  .topbar{position:sticky;top:0;z-index:30;background:rgba(244,245,248,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:15px 28px}
+  .topbar .ttl{font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+  .topbar .sub{font-size:12.5px;color:var(--muted);margin-top:1px}
+  .wa-status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-weight:600;background:var(--panel);border:1px solid var(--border);padding:7px 12px;border-radius:99px;box-shadow:var(--sh-sm)}
   .dot{width:8px;height:8px;border-radius:50%;background:#c7ccd4}.dot.on{background:var(--green);box-shadow:0 0 0 3px rgba(15,157,88,.16)}.dot.off{background:var(--red)}
-  main{padding:26px;max-width:1300px;margin:0 auto}
+  main{padding:24px 28px 40px;max-width:1320px;width:100%;margin:0 auto}
 
-  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:26px}
-  .stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--sh-sm)}
+  /* ---------- GRADIENT CARDS ---------- */
+  .gcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:24px}
+  .gcard{border-radius:18px;padding:20px 22px;color:#fff;position:relative;overflow:hidden;box-shadow:0 14px 34px -16px rgba(16,24,40,.5);min-height:118px}
+  .gcard::after{content:"";position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.10)}
+  .gcard .lbl{font-size:12.5px;font-weight:600;opacity:.9}
+  .gcard .val{font-size:30px;font-weight:800;letter-spacing:-.03em;margin-top:10px;line-height:1}
+  .gcard .sub{font-size:12px;opacity:.82;margin-top:8px}
+  .g-dark{background:linear-gradient(140deg,#222838,#11141d)}
+  .g-purple{background:linear-gradient(140deg,#8a6bff,#6a3df0)}
+  .g-green{background:linear-gradient(140deg,#22b573,#0f9d58)}
+  .g-red{background:linear-gradient(140deg,#f4686d,#e23b40)}
+  .g-orange{background:linear-gradient(140deg,#ff8a3a,#ef5a12)}
+  .g-blue{background:linear-gradient(140deg,#3aa0ff,#1f6fe0)}
+
+  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:17px 19px;box-shadow:var(--sh-sm)}
   .stat .lbl{color:var(--muted);font-size:12.5px;font-weight:600}
-  .stat .val{font-size:26px;font-weight:800;margin-top:7px;letter-spacing:-.03em;color:var(--ink)}
-  .stat .val.green{color:var(--green)}.stat .val.orange{color:var(--orange-deep)}.stat .val.red{color:var(--red)}.stat .val.yellow{color:var(--yellow)}
-  .section-h{font-size:14px;font-weight:700;margin:8px 0 14px;color:var(--ink-2)}
+  .stat .val{font-size:25px;font-weight:800;margin-top:7px;letter-spacing:-.03em;color:var(--ink)}
+  .stat .val.green{color:var(--green)}.stat .val.orange{color:var(--orange-deep)}.stat .val.red{color:var(--red)}.stat .val.yellow{color:var(--yellow)}.stat .val.purple{color:var(--purple)}
+  .section-h{font-size:13px;font-weight:700;margin:6px 0 14px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:8px}
 
-  .board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:10px}
-  .col{background:var(--panel-2);border:1px solid var(--border);border-radius:14px;padding:12px;min-height:140px}
-  .col.drag{border-color:var(--orange);background:var(--orange-soft)}
-  .col-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-2)}
-  .col-h .count{background:#fff;border:1px solid var(--border);color:var(--muted);border-radius:7px;padding:1px 8px;font-size:11.5px}
-  .col-h .pip{width:8px;height:8px;border-radius:3px;margin-right:7px;display:inline-block;vertical-align:middle}
-  .lead-card{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:12px 13px;margin-bottom:9px;cursor:grab;box-shadow:var(--sh-sm);transition:all .15s}
+  /* funnel bar (overview) */
+  .funnel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px 20px;box-shadow:var(--sh-sm);margin-bottom:24px}
+  .funnel .row-f{display:flex;align-items:center;gap:12px;margin:10px 0}
+  .funnel .nm{width:96px;font-size:13px;font-weight:600;color:var(--ink-2)}
+  .funnel .bar{flex:1;height:12px;background:var(--border-2);border-radius:99px;overflow:hidden}
+  .funnel .bar i{display:block;height:100%;border-radius:99px}
+  .funnel .ct{width:34px;text-align:right;font-weight:700;font-size:13px;color:var(--ink)}
+
+  /* ---------- KANBAN ---------- */
+  .board{display:grid;grid-template-columns:repeat(5,minmax(230px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:12px}
+  .col{background:var(--panel-2);border:1px solid var(--border);border-radius:16px;padding:6px;min-height:160px;transition:.15s}
+  .col.drag{border-color:var(--orange);background:var(--orange-soft);box-shadow:inset 0 0 0 1px var(--orange)}
+  .col-top{height:4px;border-radius:99px;margin:4px 6px 0}
+  .col-h{display:flex;align-items:center;justify-content:space-between;padding:11px 10px 6px;font-weight:700;font-size:12.5px;color:var(--ink)}
+  .col-h .lft{display:flex;align-items:center;gap:8px}
+  .col-h .count{background:var(--panel);border:1px solid var(--border);color:var(--muted);border-radius:99px;padding:1px 9px;font-size:11.5px;font-weight:700}
+  .col-sum{padding:0 10px 8px;font-size:12px;font-weight:700;color:var(--green)}
+  .col-body{padding:4px 6px 8px;min-height:60px}
+  .lead-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 13px;margin-bottom:9px;cursor:grab;box-shadow:var(--sh-sm);transition:all .15s}
   .lead-card:hover{border-color:#d6d8de;box-shadow:var(--sh-md);transform:translateY(-1px)}
+  .lead-card:active{cursor:grabbing}
   .lead-card .nm{font-weight:700;font-size:13.5px;color:var(--ink)}
-  .lead-card .meta{color:var(--muted);font-size:12px;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  .tag{display:inline-block;background:var(--border-2);color:var(--ink-2);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600}
-  .tag.warn{background:var(--yellow-bg);color:var(--yellow)}.tag.exp{background:var(--red-bg);color:var(--red)}
+  .lead-card .ph{color:var(--muted);font-size:12px;margin-top:3px;display:flex;align-items:center;gap:5px}
+  .lead-card .ph svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+  .lead-card .foot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:9px}
+  .lead-card .dv{font-size:12.5px;font-weight:800;color:var(--ink)}
+  .tag{display:inline-flex;align-items:center;gap:4px;background:var(--orange-soft);color:var(--orange-deep);border-radius:7px;padding:2px 8px;font-size:11px;font-weight:700}
+  .tag.warn{background:var(--yellow-bg);color:var(--yellow)}.tag.exp{background:var(--red-bg);color:var(--red)}.tag.plain{background:var(--border-2);color:var(--ink-2)}
 
   table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:14px;overflow:hidden;border:1px solid var(--border);box-shadow:var(--sh-sm)}
   th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--border-2);font-size:13px;color:var(--ink-2)}
@@ -67,13 +117,14 @@
   .pill.pago{background:var(--green-bg);color:var(--green)}.pill.pendente{background:var(--yellow-bg);color:var(--yellow)}
   .pill.atrasado{background:var(--red-bg);color:var(--red)}.pill.cancelado{background:var(--border-2);color:var(--muted)}
 
-  .btn{background:var(--orange);color:#fff;border:none;padding:9px 15px;border-radius:9px;font-weight:600;font-size:13px;transition:all .15s;box-shadow:var(--sh-sm)}
+  .btn{background:var(--orange);color:#fff;border:none;padding:9px 15px;border-radius:10px;font-weight:600;font-size:13px;transition:all .15s;box-shadow:var(--sh-sm)}
   .btn:hover{background:var(--orange-deep)}
   .btn.sm{padding:6px 11px;font-size:12px}
   .btn.ghost{background:#fff;border:1px solid var(--border);color:var(--ink-2);box-shadow:none}
   .btn.ghost:hover{background:var(--panel-2);border-color:#d7dae0}
   .btn.green{background:var(--green)}.btn.green:hover{background:#0c854a}
   .btn.red{background:#fff;border:1px solid var(--red-bg);color:var(--red);box-shadow:none}.btn.red:hover{background:var(--red-bg)}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
 
   .overlay{position:fixed;inset:0;background:rgba(16,18,24,.35);backdrop-filter:blur(2px);z-index:50;display:flex;justify-content:flex-end}
   .drawer{position:relative;width:444px;max-width:100%;background:var(--panel);height:100%;overflow-y:auto;padding:24px;border-left:1px solid var(--border);animation:slide .26s cubic-bezier(.2,.8,.2,1);box-shadow:var(--sh-lg)}
@@ -82,9 +133,9 @@
   .drawer .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
   .field{margin:15px 0}
   .field label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px}
-  input,select,textarea{width:100%;background:#fff;border:1px solid var(--border);border-radius:9px;padding:10px 12px;color:var(--ink);font-size:13.5px;outline:none;transition:border-color .15s,box-shadow .15s}
+  input,select,textarea{width:100%;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:13.5px;outline:none;transition:border-color .15s,box-shadow .15s}
   input:focus,select:focus,textarea:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-soft)}
-  input::placeholder{color:var(--faint)}
+  input::placeholder,textarea::placeholder{color:var(--faint)}
   .row{display:flex;gap:8px}.row>*{flex:1}
   .chat{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:13px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
   .msg{max-width:82%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
@@ -102,14 +153,38 @@
   .qr img{width:100%;height:100%;object-fit:contain}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:11px;z-index:80;font-weight:500;font-size:13px;box-shadow:var(--sh-lg)}
 
-  .card-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:var(--sh-sm);margin-bottom:16px;max-width:760px}
+  .card-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--sh-sm);margin-bottom:16px}
   .card-box h4{font-size:15px;font-weight:700;color:var(--ink)}
   .card-box .desc{font-size:12.5px;color:var(--muted);margin:4px 0 16px}
+
+  /* segmented control */
+  .seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:3px;gap:2px}
+  .seg button{background:transparent;border:none;color:var(--muted);font-weight:600;font-size:13px;padding:7px 14px;border-radius:8px;transition:.15s}
+  .seg button.on{background:#fff;color:var(--orange-deep);box-shadow:var(--sh-sm)}
+
+  /* message composer */
+  .compose{display:grid;grid-template-columns:1fr 340px;gap:18px;align-items:start}
+  @media(max-width:880px){.compose{grid-template-columns:1fr}}
+  .wa-preview{background:#e7ddd3;border-radius:16px;padding:20px;min-height:300px;background-image:linear-gradient(rgba(231,221,211,.6),rgba(231,221,211,.6))}
+  .wa-bubble{background:#fff;border-radius:10px;border-top-left-radius:2px;padding:8px;max-width:300px;box-shadow:0 1px 1px rgba(0,0,0,.12);font-size:13.5px;color:#111}
+  .wa-bubble img{width:100%;border-radius:7px;display:block;margin-bottom:6px}
+  .wa-bubble .txt{white-space:pre-wrap;word-break:break-word;line-height:1.4;padding:0 2px}
+  .wa-bubble .ft{color:#667;font-size:11px;margin-top:5px;padding:0 2px}
+  .wa-bubble .btns{margin-top:8px;border-top:1px solid #eef0f2;padding-top:6px;display:flex;flex-direction:column;gap:5px}
+  .wa-bubble .btns .b{color:#0a7cff;text-align:center;font-weight:600;font-size:13px;padding:7px;background:#fff;border-radius:7px;border-top:1px solid #f0f2f4}
+  .btn-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .img-thumb{width:54px;height:54px;border-radius:9px;object-fit:cover;border:1px solid var(--border)}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
 
   .login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
   .login .box{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:36px;width:352px;text-align:center;box-shadow:var(--sh-lg)}
   .login .box .p{color:var(--muted);margin-bottom:18px;font-size:13px}
-  @media(max-width:900px){.board{grid-template-columns:repeat(5,minmax(200px,1fr))}main{padding:18px}nav button span{display:none}}
+  .login .brand{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:800;font-size:18px;margin-bottom:10px}
+  .login .brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#ff8a3a,#f5521e);display:flex;align-items:center;justify-content:center}
+  .login .brand .logo svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2}
+  .login .brand b{color:var(--orange-deep)}
+  @media(max-width:980px){.sidebar{width:72px;flex:0 0 72px}.sb-brand span:last-child,.sb-label,.sb-nav button span,.sb-user .who{display:none}.sb-nav button{justify-content:center}.sb-user{justify-content:center}}
+  @media(max-width:760px){main{padding:18px}.topbar{padding:13px 18px}}
 </style>
 </head>
 <body>
@@ -117,7 +192,7 @@
 <!-- LOGIN -->
 <div class="login" id="login">
   <div class="box">
-    <div class="brand" style="justify-content:center;margin-bottom:10px"><span class="logo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
     <div class="p">Painel administrativo</div>
     <input id="loginEmail" type="email" placeholder="E-mail" autocomplete="username" style="margin-bottom:10px" onkeydown="if(event.key==='Enter')doLogin()">
     <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" style="margin-bottom:14px" onkeydown="if(event.key==='Enter')doLogin()">
@@ -128,22 +203,40 @@
 
 <!-- APP -->
 <div id="app" class="hidden">
-  <header>
-    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
-    <nav>
-      <button data-tab="dash" class="active" onclick="tab('dash')"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Dashboard</span></button>
-      <button data-tab="kanban" onclick="tab('kanban')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg><span>CRM</span></button>
+ <div class="layout">
+  <aside class="sidebar">
+    <div class="sb-brand"><span class="logo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
+    <div class="sb-label">Menu</div>
+    <nav class="sb-nav">
+      <button data-tab="overview" class="active" onclick="tab('overview')"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Visão geral</span></button>
+      <button data-tab="kanban" onclick="tab('kanban')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg><span>CRM · Funil</span></button>
+      <button data-tab="msgs" onclick="tab('msgs')"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg><span>Mensagens</span></button>
       <button data-tab="fin" onclick="tab('fin')"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M2.5 10h19"/></svg><span>Financeiro</span></button>
       <button data-tab="config" onclick="tab('config')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V20a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 18.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 5 13a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 6.6L4.9 6.5a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11 4.6V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"/></svg><span>Configurações</span></button>
     </nav>
-    <div class="wa-status" id="waStatus"><span class="dot"></span> verificando...</div>
-  </header>
-  <main>
-    <section id="dash"></section>
-    <section id="kanban" class="hidden"></section>
-    <section id="fin" class="hidden"></section>
-    <section id="config" class="hidden"></section>
-  </main>
+    <div class="sb-foot">
+      <div class="sb-user">
+        <div class="av" id="sbAv">H</div>
+        <div class="who"><div class="em" id="sbEmail">—</div><div class="st">conta ativa</div></div>
+      </div>
+      <button class="out" onclick="logout()"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg> Sair</button>
+    </div>
+  </aside>
+
+  <div class="content">
+    <div class="topbar">
+      <div><div class="ttl" id="pageTtl">Visão geral</div><div class="sub" id="pageSub">Resumo do seu negócio</div></div>
+      <div class="wa-status" id="waStatus"><span class="dot"></span> verificando...</div>
+    </div>
+    <main>
+      <section id="overview"></section>
+      <section id="kanban" class="hidden"></section>
+      <section id="msgs" class="hidden"></section>
+      <section id="fin" class="hidden"></section>
+      <section id="config" class="hidden"></section>
+    </main>
+  </div>
+ </div>
 </div>
 
 <div id="drawerRoot"></div>
@@ -153,10 +246,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ===================== AUTH (Supabase) ===================== */
-let supa = null;
+let supa = null, PRICES = { mensal: 19.9, semestral: 79.9, anual: 129.9 };
 async function initSupa() {
   if (supa) return supa;
   const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
+  if (cfg.prices) PRICES = cfg.prices;
   if (cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase) supa = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
   return supa;
 }
@@ -176,9 +270,14 @@ const money = (v) => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', { minimumF
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function planPrice(plan) { const p = String(plan || '').toLowerCase(); if (p.includes('semes')) return PRICES.semestral; if (p.includes('anu')) return PRICES.anual; return PRICES.mensal; }
 
 /* ===================== LOGIN ===================== */
-function enterApp() { document.getElementById('login').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); boot(); }
+function enterApp() {
+  document.getElementById('login').classList.add('hidden'); document.getElementById('app').classList.remove('hidden');
+  supa?.auth.getUser().then(({ data }) => { const em = data?.user?.email || ''; document.getElementById('sbEmail').textContent = em; document.getElementById('sbAv').textContent = (em[0] || 'H').toUpperCase(); }).catch(() => {});
+  boot();
+}
 async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPass').value;
@@ -192,33 +291,47 @@ async function doLogin() {
 async function logout() { if (supa) await supa.auth.signOut(); location.reload(); }
 
 /* ===================== TABS ===================== */
+const TITLES = {
+  overview: ['Visão geral', 'Resumo do seu negócio'],
+  kanban: ['CRM · Funil', 'Arraste os leads entre as etapas'],
+  msgs: ['Mensagens', 'Crie e dispare mensagens com imagem e botões'],
+  fin: ['Financeiro', 'Cobranças, despesas e relatórios'],
+  config: ['Configurações', 'WhatsApp e notificações'],
+};
 function tab(name) {
-  ['dash', 'kanban', 'fin', 'config'].forEach(t => {
+  ['overview', 'kanban', 'msgs', 'fin', 'config'].forEach(t => {
     document.getElementById(t).classList.toggle('hidden', t !== name);
-    document.querySelector(`nav button[data-tab="${t}"]`).classList.toggle('active', t === name);
+    document.querySelector(`.sb-nav button[data-tab="${t}"]`).classList.toggle('active', t === name);
   });
-  if (name === 'dash') loadDash();
+  const [t, s] = TITLES[name]; document.getElementById('pageTtl').textContent = t; document.getElementById('pageSub').textContent = s;
+  if (name === 'overview') loadOverview();
   if (name === 'kanban') loadKanban();
+  if (name === 'msgs') loadMsgs();
   if (name === 'fin') loadFin();
   if (name === 'config') loadConfig();
 }
 
-/* ===================== DASHBOARD ===================== */
-async function loadDash() {
+/* ===================== OVERVIEW (dashboard) ===================== */
+async function loadOverview() {
   const s = await api('/payments/summary/all');
-  document.getElementById('dash').innerHTML = `
-    <div class="grid-stats">
-      <div class="stat"><div class="lbl">Total de leads</div><div class="val">${s.totalLeads}</div></div>
-      <div class="stat"><div class="lbl">Conversão</div><div class="val orange">${s.conversao}%</div></div>
-      <div class="stat"><div class="lbl">MRR estimado</div><div class="val green">${money(s.mrr)}</div></div>
-      <div class="stat"><div class="lbl">Recebido</div><div class="val green">${money(s.financeiro.recebido)}</div></div>
-      <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(s.financeiro.pendente)}</div></div>
-      <div class="stat"><div class="lbl">Lucro</div><div class="val ${s.financeiro.lucro >= 0 ? 'green' : 'red'}">${money(s.financeiro.lucro)}</div></div>
+  const f = s.financeiro;
+  const maxF = Math.max(1, ...Object.values(s.funil));
+  const FUN = [['lead', 'Leads', '#9aa0ac'], ['testando', 'Testando', '#f5611e'], ['ganho', 'Ganhos', '#0f9d58'], ['perdido', 'Perdidos', '#e5484d'], ['followup', 'Follow-up', '#b7791f']];
+  document.getElementById('overview').innerHTML = `
+    <div class="gcards">
+      <div class="gcard g-dark"><div class="lbl">Total de leads</div><div class="val">${s.totalLeads}</div><div class="sub">Conversão de ${s.conversao}%</div></div>
+      <div class="gcard g-purple"><div class="lbl">MRR estimado</div><div class="val">${money(s.mrr)}</div><div class="sub">Receita recorrente / mês</div></div>
+      <div class="gcard g-green"><div class="lbl">Recebido</div><div class="val">${money(f.recebido)}</div><div class="sub">${f.pagos} pagamentos</div></div>
+      <div class="gcard g-red"><div class="lbl">Lucro (sobra)</div><div class="val">${money(f.lucro)}</div><div class="sub">Recebido − despesas</div></div>
     </div>
-    <div class="section-h">Funil</div>
     <div class="grid-stats">
-      ${[['lead', 'Leads', ''], ['testando', 'Testando', 'orange'], ['ganho', 'Ganhos', 'green'], ['perdido', 'Perdidos', 'red'], ['followup', 'Follow-up', 'yellow']]
-        .map(([k, l, c]) => `<div class="stat"><div class="lbl">${l}</div><div class="val ${c}">${s.funil[k]}</div></div>`).join('')}
+      <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(f.pendente)}</div></div>
+      <div class="stat"><div class="lbl">Atrasado</div><div class="val red">${money(f.atrasado)}</div></div>
+      <div class="stat"><div class="lbl">Despesas</div><div class="val red">${money(f.despesas)}</div></div>
+    </div>
+    <div class="section-h">Funil de vendas</div>
+    <div class="funnel">
+      ${FUN.map(([k, l, c]) => `<div class="row-f"><span class="nm">${l}</span><div class="bar"><i style="width:${Math.round((s.funil[k] / maxF) * 100)}%;background:${c}"></i></div><span class="ct">${s.funil[k]}</span></div>`).join('')}
     </div>`;
 }
 
@@ -232,22 +345,40 @@ const STAGES = [
 ];
 let LEADS = [];
 async function loadKanban() { LEADS = await api('/leads'); renderBoard(); }
+function dealValue(l) { return planPrice(l.plan); }
 function renderBoard() {
   const now = Date.now();
-  document.getElementById('kanban').innerHTML = `<div class="board">${STAGES.map(st => {
+  const sumStage = (id) => LEADS.filter(l => l.stage === id).reduce((s, l) => s + dealValue(l), 0);
+  const totalAll = LEADS.reduce((s, l) => s + dealValue(l), 0);
+  const nego = sumStage('testando') + sumStage('followup');
+  const board = `<div class="board">${STAGES.map(st => {
     const items = LEADS.filter(l => l.stage === st.id);
+    const sum = items.reduce((s, l) => s + dealValue(l), 0);
     return `<div class="col" data-stage="${st.id}" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropLead(event,'${st.id}')">
-      <div class="col-h"><span><span class="pip" style="background:${st.color}"></span>${st.label}</span><span class="count">${items.length}</span></div>
+      <div class="col-top" style="background:${st.color}"></div>
+      <div class="col-h"><span class="lft">${esc(st.label)}</span><span class="count">${items.length}</span></div>
+      <div class="col-sum" style="color:${st.color}">${money(sum)}</div>
+      <div class="col-body">
       ${items.map(l => {
         let exp = '';
-        if (l.test_expires_at) { const left = new Date(l.test_expires_at).getTime() - now; exp = left > 0 ? `<span class="tag warn">${Math.ceil(left / 3600000)}h restantes</span>` : `<span class="tag exp">teste expirado</span>`; }
+        if (l.test_expires_at) { const left = new Date(l.test_expires_at).getTime() - now; exp = left > 0 ? `<span class="tag warn">${Math.ceil(left / 3600000)}h</span>` : `<span class="tag exp">expirado</span>`; }
         return `<div class="lead-card" draggable="true" ondragstart="dragLead(event,'${l.id}')" onclick="openLead('${l.id}')">
           <div class="nm">${esc(l.name)}</div>
-          <div class="meta"><span>${esc(l.phone)}</span>${l.plan ? `<span class="tag">${esc(l.plan)}</span>` : ''}${exp}</div>
+          <div class="ph"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>${esc(l.phone)}</div>
+          <div class="foot"><span class="dv">${money(dealValue(l))}</span><span>${l.plan ? `<span class="tag plain">${esc(l.plan)}</span>` : ''}${exp}</span></div>
         </div>`;
-      }).join('')}
+      }).join('') || '<div style="color:var(--faint);font-size:12px;text-align:center;padding:14px 0">Vazio</div>'}
+      </div>
     </div>`;
   }).join('')}</div>`;
+  document.getElementById('kanban').innerHTML = `
+    <div class="gcards">
+      <div class="gcard g-dark"><div class="lbl">Total do funil</div><div class="val">${money(totalAll)}</div><div class="sub">${LEADS.length} negócios</div></div>
+      <div class="gcard g-purple"><div class="lbl">Em negociação</div><div class="val">${money(nego)}</div><div class="sub">Testando + follow-up</div></div>
+      <div class="gcard g-green"><div class="lbl">Fechado (ganho)</div><div class="val">${money(sumStage('ganho'))}</div><div class="sub">${LEADS.filter(l => l.stage === 'ganho').length} ganhos</div></div>
+      <div class="gcard g-red"><div class="lbl">Perdido</div><div class="val">${money(sumStage('perdido'))}</div><div class="sub">${LEADS.filter(l => l.stage === 'perdido').length} perdidos</div></div>
+    </div>
+    ${board}`;
 }
 let dragId = null;
 function dragLead(e, id) { dragId = id; e.dataTransfer.effectAllowed = 'move'; }
@@ -344,36 +475,138 @@ async function sendMsg(id) {
 async function saveNotes(id) { const notes = document.getElementById('dNotes').value; try { await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ notes }) }); toast('Nota salva'); } catch (e) { toast('Erro: ' + e.message); } }
 async function delLead(id) { if (!confirm('Excluir este lead?')) return; try { await api('/leads/' + id, { method: 'DELETE' }); toast('Lead excluído'); closeDrawer(); loadKanban(); } catch (e) { toast('Erro: ' + e.message); } }
 
+/* ===================== MENSAGENS (disparo manual) ===================== */
+let MSG = { image: '', buttons: [], target: 'numero', stageCounts: {} };
+async function loadMsgs() {
+  // contagem por etapa para o seletor de destinatários
+  try { const leads = await api('/leads'); MSG.stageCounts = {}; for (const l of leads) MSG.stageCounts[l.stage] = (MSG.stageCounts[l.stage] || 0) + 1; MSG.total = leads.length; }
+  catch (e) { MSG.stageCounts = {}; MSG.total = 0; }
+  renderMsgs();
+}
+function renderMsgs() {
+  const sc = MSG.stageCounts || {};
+  document.getElementById('msgs').innerHTML = `
+  <div class="compose">
+    <div>
+      <div class="card-box" style="margin-bottom:16px">
+        <h4>Destinatários</h4>
+        <div class="desc">Para quem enviar essa mensagem.</div>
+        <div class="seg" style="margin-bottom:12px">
+          <button class="${MSG.target === 'numero' ? 'on' : ''}" onclick="setTarget('numero')">Número avulso</button>
+          <button class="${MSG.target === 'stage' ? 'on' : ''}" onclick="setTarget('stage')">Por etapa</button>
+          <button class="${MSG.target === 'todos' ? 'on' : ''}" onclick="setTarget('todos')">Todos os leads</button>
+        </div>
+        <div id="targetBody">${targetBody()}</div>
+      </div>
+      <div class="card-box">
+        <h4>Mensagem</h4>
+        <div class="desc">Texto, imagem e até 3 botões.</div>
+        <div class="field"><label>Texto</label><textarea id="msgText" rows="5" placeholder="Escreva sua mensagem... (use *negrito* do WhatsApp)" oninput="renderMsgPreview()"></textarea></div>
+        <div class="field"><label>Imagem (opcional)</label>
+          <div class="btn-row">
+            ${MSG.image ? `<img class="img-thumb" src="${MSG.image}"><button class="btn sm red" onclick="clearImg()">Remover</button>` : `
+            <label class="btn sm ghost" style="display:inline-flex">Enviar arquivo<input type="file" accept="image/*" class="hidden" onchange="onImgFile(this)"></label>
+            <span style="color:var(--faint);font-size:12px">ou cole uma URL abaixo</span>`}
+          </div>
+          ${MSG.image ? '' : `<input id="msgImgUrl" placeholder="https://.../imagem.jpg" oninput="onImgUrl(this.value)">`}
+        </div>
+        <div class="field"><label>Botões (resposta rápida) — máx. 3</label>
+          <div id="btnList">${btnList()}</div>
+          ${MSG.buttons.length < 3 ? `<button class="btn sm ghost" style="margin-top:8px" onclick="addBtn()">+ Adicionar botão</button>` : ''}
+        </div>
+        <div class="field"><label>Rodapé (opcional)</label><input id="msgFooter" placeholder="Ex.: HyperFlick • IPTV" oninput="renderMsgPreview()"></div>
+        <button class="btn" id="msgSend" onclick="dispatchMsg()" style="width:100%;margin-top:6px">Disparar mensagem</button>
+        <div id="msgResult" style="margin-top:12px"></div>
+      </div>
+    </div>
+    <div>
+      <div class="section-h">Pré-visualização</div>
+      <div class="wa-preview"><div class="wa-bubble" id="waBubble"></div></div>
+    </div>
+  </div>`;
+  renderMsgPreview();
+}
+function targetBody() {
+  const sc = MSG.stageCounts || {};
+  if (MSG.target === 'numero') return `<input id="tgNumber" placeholder="WhatsApp com DDD (ex.: 11999998888)">`;
+  if (MSG.target === 'stage') return `<select id="tgStage">${STAGES.map(s => `<option value="${s.id}">${s.label} (${sc[s.id] || 0})</option>`).join('')}</select>`;
+  return `<div class="chip">Enviar para todos os ${MSG.total || 0} leads com WhatsApp</div>`;
+}
+function setTarget(t) { MSG.target = t; document.querySelectorAll('#msgs .seg button').forEach(b => b.classList.remove('on')); event.target.classList.add('on'); document.getElementById('targetBody').innerHTML = targetBody(); }
+function btnList() {
+  return MSG.buttons.map((b, i) => `<div class="btn-row"><input value="${esc(b.text)}" placeholder="Texto do botão ${i + 1}" oninput="MSG.buttons[${i}].text=this.value;renderMsgPreview()"><button class="btn sm red" onclick="rmBtn(${i})">×</button></div>`).join('') || '';
+}
+function addBtn() { if (MSG.buttons.length >= 3) return; MSG.buttons.push({ text: '' }); document.getElementById('btnList').innerHTML = btnList(); renderMsgsButtonsArea(); }
+function rmBtn(i) { MSG.buttons.splice(i, 1); document.getElementById('btnList').innerHTML = btnList(); renderMsgsButtonsArea(); renderMsgPreview(); }
+function renderMsgsButtonsArea() { // re-render só a área de botões (para mostrar/ocultar o "+")
+  const wrap = document.getElementById('btnList').parentElement;
+  const addExisting = wrap.querySelector('button.ghost');
+  if (MSG.buttons.length < 3 && !addExisting) { const b = document.createElement('button'); b.className = 'btn sm ghost'; b.style.marginTop = '8px'; b.textContent = '+ Adicionar botão'; b.onclick = addBtn; wrap.appendChild(b); }
+  if (MSG.buttons.length >= 3 && addExisting) addExisting.remove();
+  renderMsgPreview();
+}
+function onImgFile(input) { const f = input.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { MSG.image = rd.result; renderMsgs(); }; rd.readAsDataURL(f); }
+function onImgUrl(v) { MSG.image = v.trim(); renderMsgPreview(); }
+function clearImg() { MSG.image = ''; renderMsgs(); }
+function renderMsgPreview() {
+  const text = document.getElementById('msgText')?.value || '';
+  const footer = document.getElementById('msgFooter')?.value || '';
+  const wa = (s) => esc(s).replace(/\*(.+?)\*/g, '<b>$1</b>').replace(/_(.+?)_/g, '<i>$1</i>');
+  const btns = MSG.buttons.filter(b => b.text.trim());
+  document.getElementById('waBubble').innerHTML = `
+    ${MSG.image ? `<img src="${esc(MSG.image)}" onerror="this.style.display='none'">` : ''}
+    <div class="txt">${wa(text) || '<span style="color:#999">Sua mensagem aparece aqui…</span>'}</div>
+    ${footer ? `<div class="ft">${esc(footer)}</div>` : ''}
+    ${btns.length ? `<div class="btns">${btns.map(b => `<div class="b">${esc(b.text)}</div>`).join('')}</div>` : ''}`;
+}
+async function dispatchMsg() {
+  const text = document.getElementById('msgText').value.trim();
+  const footer = document.getElementById('msgFooter').value.trim();
+  const buttons = MSG.buttons.filter(b => b.text.trim());
+  if (!text && !MSG.image) { toast('Escreva um texto ou anexe uma imagem.'); return; }
+  const payload = { text, footer, buttons, image: MSG.image || '' };
+  if (MSG.target === 'numero') { const n = document.getElementById('tgNumber').value.trim(); if (!n) { toast('Informe o número.'); return; } payload.recipients = [{ phone: n }]; }
+  else if (MSG.target === 'stage') { payload.stage = document.getElementById('tgStage').value; }
+  else { payload.allLeads = true; }
+
+  const btn = document.getElementById('msgSend'); btn.disabled = true; btn.textContent = 'Enviando...';
+  const res = document.getElementById('msgResult');
+  try {
+    const r = await api('/messages/send', { method: 'POST', body: JSON.stringify(payload) });
+    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.sent} enviada(s)${r.failed ? ` · ${r.failed} falha(s)` : ''} de ${r.total}</div>`;
+    toast(`Disparo concluído: ${r.sent}/${r.total}`);
+  } catch (e) { res.innerHTML = `<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">${esc(e.message)}</div>`; }
+  finally { btn.disabled = false; btn.textContent = 'Disparar mensagem'; }
+}
+
 /* ===================== FINANCEIRO ===================== */
 let finSub = 'resumo';
 function loadFin() {
   document.getElementById('fin').innerHTML = `
-    <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:2px">
-      ${[['resumo', 'Resumo'], ['cobrancas', 'Cobranças'], ['despesas', 'Despesas'], ['relatorios', 'Relatórios']].map(([k, l]) => `<button data-fs="${k}" onclick="finTab('${k}')" style="background:transparent;border:none;color:var(--muted);font-weight:600;font-size:13.5px;padding:8px 14px;border-radius:8px 8px 0 0;border-bottom:2px solid transparent">${l}</button>`).join('')}
+    <div class="seg" style="margin-bottom:20px">
+      ${[['resumo', 'Resumo'], ['cobrancas', 'Cobranças'], ['despesas', 'Despesas'], ['relatorios', 'Relatórios']].map(([k, l]) => `<button data-fs="${k}" class="${finSub === k ? 'on' : ''}" onclick="finTab('${k}')">${l}</button>`).join('')}
     </div>
     <div id="finBody"></div>`;
   finTab(finSub);
 }
 function finTab(t) {
   finSub = t;
-  document.querySelectorAll('#fin [data-fs]').forEach(b => { const on = b.dataset.fs === t; b.style.color = on ? 'var(--orange-deep)' : 'var(--muted)'; b.style.borderBottomColor = on ? 'var(--orange)' : 'transparent'; });
+  document.querySelectorAll('#fin [data-fs]').forEach(b => b.classList.toggle('on', b.dataset.fs === t));
   ({ resumo: finResumo, cobrancas: finCobrancas, despesas: finDespesas, relatorios: finRelatorios }[t])();
 }
 async function finResumo() {
   const s = await api('/payments/summary/all'); const f = s.financeiro;
-  document.getElementById('finBody').innerHTML = `<div class="grid-stats">
-      <div class="stat"><div class="lbl">Recebido</div><div class="val green">${money(f.recebido)}</div></div>
-      <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(f.pendente)}</div></div>
-      <div class="stat"><div class="lbl">Atrasado</div><div class="val red">${money(f.atrasado)}</div></div>
-      <div class="stat"><div class="lbl">Despesas</div><div class="val red">${money(f.despesas)}</div></div>
-      <div class="stat"><div class="lbl">Lucro (sobra)</div><div class="val ${f.lucro >= 0 ? 'green' : 'red'}">${money(f.lucro)}</div></div>
-      <div class="stat"><div class="lbl">MRR estimado</div><div class="val orange">${money(s.mrr)}</div></div>
+  document.getElementById('finBody').innerHTML = `<div class="gcards">
+      <div class="gcard g-green"><div class="lbl">Recebido</div><div class="val">${money(f.recebido)}</div><div class="sub">${f.pagos} pagamentos</div></div>
+      <div class="gcard g-orange"><div class="lbl">A receber</div><div class="val">${money(f.pendente)}</div><div class="sub">${f.emAberto} em aberto</div></div>
+      <div class="gcard g-red"><div class="lbl">Atrasado + despesas</div><div class="val">${money(f.atrasado + f.despesas)}</div><div class="sub">Atrasado ${money(f.atrasado)}</div></div>
+      <div class="gcard g-dark"><div class="lbl">Lucro (sobra)</div><div class="val">${money(f.lucro)}</div><div class="sub">MRR ${money(s.mrr)}</div></div>
     </div>`;
 }
 async function finCobrancas() {
   const rows = await api('/payments');
   document.getElementById('finBody').innerHTML = `
-    <div class="card-box" style="max-width:none">
+    <div class="card-box">
       <h4>Adicionar cobrança / cliente</h4>
       <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:12px">
         <input id="mcName" placeholder="Nome do cliente" style="flex:2;min-width:140px">
@@ -405,7 +638,7 @@ async function payPix(id) { toast('Gerando Pix...'); try { const r = await api('
 async function finDespesas() {
   const rows = await api('/expenses'); const total = rows.reduce((s, e) => s + Number(e.amount), 0);
   document.getElementById('finBody').innerHTML = `
-    <div class="card-box" style="max-width:none">
+    <div class="card-box">
       <h4>Adicionar despesa</h4>
       <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:12px">
         <input id="exDesc" placeholder="Descrição" style="flex:2;min-width:160px">
@@ -474,7 +707,7 @@ async function loadConfig() {
 function instRow(i) {
   const st = i.status === 'connected' ? 'pago' : i.status === 'connecting' ? 'pendente' : 'atrasado';
   return `<div class="inst">
-      <div><b style="color:var(--ink)">${esc(i.name)}</b> ${i.is_default ? '<span class="tag">padrão</span>' : ''}
+      <div><b style="color:var(--ink)">${esc(i.name)}</b> ${i.is_default ? '<span class="tag plain">padrão</span>' : ''}
         <div style="color:var(--muted);font-size:12px;margin-top:2px">${i.phone ? esc(i.phone) + ' · ' : ''}<span class="pill ${st}">${i.status}</span></div></div>
       <div class="row" style="flex:0 0 auto;gap:6px">
         ${i.status !== 'connected' ? `<button class="btn sm" onclick="connectInst('${i.id}')">Conectar</button>` : `<button class="btn sm ghost" onclick="discInst('${i.id}')">Desconectar</button>`}
@@ -525,7 +758,7 @@ async function refreshWaStatus() {
 }
 
 /* ===================== BOOT ===================== */
-function boot() { loadDash(); refreshWaStatus(); }
+function boot() { loadOverview(); refreshWaStatus(); }
 (async function () { await initSupa(); const token = await accessToken(); if (token) enterApp(); })();
 </script>
 </body>

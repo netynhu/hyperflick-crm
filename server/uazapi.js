@@ -57,6 +57,22 @@ export const uazapi = {
   sendText(token, number, text) {
     return call('/send/text', { method: 'POST', token, body: { number, text, linkPreview: false } });
   },
+  // Envia mídia (imagem/vídeo/documento). file = URL pública OU base64/data-uri.
+  // type: 'image' | 'video' | 'document' | 'audio'
+  sendMedia(token, number, { type = 'image', file, text = '', docName } = {}) {
+    return call('/send/media', {
+      method: 'POST', token,
+      body: { number, type, file, text, ...(docName ? { docName } : {}) },
+    });
+  },
+  // Envia menu com botões de resposta rápida.
+  // choices = ['Opção 1', 'Opção 2', ...]  (botões de resposta)
+  sendMenu(token, number, { text, choices = [], footerText = '', type = 'button' } = {}) {
+    return call('/send/menu', {
+      method: 'POST', token,
+      body: { number, type, text, choices, footerText },
+    });
+  },
   // Registra o webhook para receber mensagens de entrada
   setWebhook(token, url) {
     return call('/webhook', {

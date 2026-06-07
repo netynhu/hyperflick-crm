@@ -45,6 +45,34 @@ export async function sendWhatsApp({ leadId, phone, text }) {
   return result;
 }
 
+// Envia mídia (imagem) e opcionalmente botões, registrando na tabela messages.
+// Usa a instância conectada. Lança erro (NO_INSTANCE) se não houver.
+export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', buttons = [], footer = '' }) {
+  const inst = await getActiveInstance();
+  if (!inst) { const e = new Error('Nenhuma instância WhatsApp conectada.'); e.code = 'NO_INSTANCE'; throw e; }
+  const number = normalizePhone(phone);
+  const choices = (buttons || []).map((b) => (typeof b === 'string' ? b : b?.text)).filter(Boolean);
+  const logBody = text || (image ? '[imagem]' : '') || (choices.length ? '[menu]' : '');
+
+  try {
+    // 1) imagem (com legenda só se não houver botões)
+    if (image) {
+      await uazapi.sendMedia(inst.token, number, { type: 'image', file: image, text: choices.length ? '' : text });
+    }
+    // 2) botões (com o texto) — ou texto puro se não houve imagem
+    if (choices.length) {
+      await uazapi.sendMenu(inst.token, number, { text, choices, footerText: footer });
+    } else if (!image) {
+      await uazapi.sendText(inst.token, number, text);
+    }
+  } catch (err) {
+    await logMessage({ leadId, phone: number, direction: 'out', body: logBody, status: 'failed' });
+    throw err;
+  }
+  await logMessage({ leadId, phone: number, direction: 'out', body: logBody, status: 'sent' });
+  return { ok: true };
+}
+
 export async function logMessage({ leadId, phone, direction, body, messageId = null, status = null }) {
   await sb().from('messages').insert({
     lead_id: leadId || null, phone, direction, body, message_id: messageId, status,
