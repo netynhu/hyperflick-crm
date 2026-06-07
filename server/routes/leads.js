@@ -33,8 +33,9 @@ router.post('/', async (req, res) => {
     // upsert por telefone (não duplica lead que voltou)
     const { data: existing } = await sb().from('leads').select('*').eq('phone', phone).maybeSingle();
 
-    // Número já cadastrado E que JÁ recebeu teste → não gera outro: avisa e manda comprar
-    if (existing && existing.test_username) {
+    // Número já cadastrado E que JÁ recebeu teste → não gera outro: avisa e manda comprar.
+    // (Só quando há intenção de gerar teste; atualização de plano com generateTest:false não dispara isso.)
+    if (existing && existing.test_username && b.generateTest !== false) {
       const { data: lead } = await sb().from('leads')
         .update({ name, plan: payload.plan || existing.plan, app: payload.app || existing.app })
         .eq('id', existing.id).select().single();

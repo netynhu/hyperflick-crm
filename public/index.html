@@ -163,6 +163,22 @@
   .hero .brand .logo{animation:floaty 4s ease-in-out infinite}
   .stats .n{font-variant-numeric:tabular-nums}
 
+  /* ===== APPS GRÁTIS x PAGOS ===== */
+  .applegend{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:13px;padding:12px 14px;text-align:left;margin-bottom:14px;display:flex;flex-direction:column;gap:8px}
+  .applegend>div{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted)}
+  .applegend .ap{color:#fff;font-weight:600}
+  .badge-free{background:rgba(52,211,153,.16);color:#34d399;font-size:11px;font-weight:800;padding:2px 9px;border-radius:99px;flex:0 0 auto}
+  .badge-paid{background:rgba(255,122,26,.2);color:var(--orange-2);font-size:11px;font-weight:800;padding:2px 9px;border-radius:99px;flex:0 0 auto}
+  .app.sel{border-color:var(--orange)!important;background:rgba(255,122,26,.12)!important}
+  .fallback.paid{background:rgba(255,122,26,.1);border-color:rgba(255,122,26,.35)}
+
+  /* ===== PROVA SOCIAL / BANNERS ===== */
+  .okbanner{background:rgba(52,211,153,.13);border:1px solid rgba(52,211,153,.32);color:#7ee7b8;border-radius:12px;padding:11px 14px;font-size:13px;font-weight:700;margin-bottom:16px}
+  .trust{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 6px}
+  .trust-badge{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:99px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--muted)}
+  .trust-badge.g{color:#7ee7b8;border-color:rgba(52,211,153,.32);background:rgba(52,211,153,.1)}
+  .quote{font-size:12.5px;color:var(--muted);font-style:italic;text-align:center;margin-top:8px;line-height:1.5}
+
   @media(max-width:560px){
     .grid2,.deliver{grid-template-columns:1fr}
     .card{padding:28px 20px}
@@ -172,9 +188,9 @@
 <body>
 
 <div class="topbar">
-  <span>🔥 OFERTA ENCERRA EM:</span>
-  <span class="timer" id="timer">23h 46m 30s</span>
-  <span>— garanta seu desconto!</span>
+  <span>🔥 Restam</span>
+  <span class="timer" id="vagas">9</span>
+  <span>vagas de teste grátis para hoje</span>
 </div>
 
 <div class="posters" id="posters"></div>
