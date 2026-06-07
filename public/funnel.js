@@ -177,7 +177,7 @@ function assistPlusExtra() {
       <span>Mas você tem <b style="color:#fff">7 dias grátis</b> pra testar! Para liberar 1 ano, ative em <a href="${ASSIST_PLUS.buyUrl}" target="_blank" style="color:var(--orange-2)">ativeapp.com</a>.</span>
     </div>
     <p class="hint" style="text-align:left;margin:0 0 8px">🎥 Veja o tutorial de instalação:</p>
-    <video controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000;margin-bottom:6px">
+    <video controls playsinline preload="metadata" style="max-height:300px;max-width:100%;width:auto;display:block;margin:0 auto 6px;border-radius:12px;background:#000">
       <source src="${ASSIST_PLUS.videoUrl}" type="video/mp4">
     </video>`;
 }

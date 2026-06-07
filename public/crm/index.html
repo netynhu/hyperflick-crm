@@ -299,11 +299,9 @@ async function openLead(id) {
       <div class="sub">📱 ${esc(l.phone)} · ${esc(l.plan || 'sem plano')} · ${esc(l.stage)}${l.app ? ' · 📲 ' + esc(l.app) : ''}</div>
       ${l.test_username ? `<div class="field"><label>Acesso de teste</label>
         <div class="inst" style="flex-direction:column;align-items:flex-start;gap:5px">
-          <span>👤 <b>${esc(l.test_username)}</b> &nbsp; 🔑 <b>${esc(l.test_password)}</b></span>
-          ${l.test_dns ? `<span style="color:var(--muted);font-size:12px">🌐 ${esc(l.test_dns)}</span>` : ''}
+          <span>👤 Usuário: <b>${esc(l.test_username)}</b></span>
+          <span>🔑 Senha: <b>${esc(l.test_password)}</b></span>
           ${l.app ? `<span style="color:var(--muted);font-size:12px">📲 App instalado: ${esc(l.app)}</span>` : ''}
-          <span style="color:var(--muted);font-size:12px">⏳ válido até ${fmtDT(l.test_expires_at)}</span>
-          ${l.pay_url ? `<a href="${esc(l.pay_url)}" target="_blank" style="font-size:12.5px">💳 Link de pagamento do cliente</a>` : ''}
         </div></div>` : ''}
 
       <div class="field"><label>Etapa</label>
