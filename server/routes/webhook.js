@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { hasSupabase } from '../supabase.js';
 import { normalizePhone } from '../lib/helpers.js';
-import { logMessage } from '../lib/service.js';
+import { logMessage, sendWhatsApp } from '../lib/service.js';
+import { getPayment } from '../lib/mercadopago.js';
 
 const router = Router();
 
@@ -41,6 +42,38 @@ router.post('/uazapi', async (req, res) => {
     await logMessage({ leadId: lead?.id, phone, direction: 'in', body: text, messageId });
   } catch (err) {
     console.error('webhook uazapi', err.message);
+  }
+});
+
+// POST /api/webhook/mercadopago — confirmação de pagamento Pix
+router.post('/mercadopago', async (req, res) => {
+  res.json({ ok: true }); // responde rápido
+  if (!hasSupabase()) return;
+  try {
+    const topic = req.body?.type || req.query.topic || req.query.type;
+    const id = req.body?.data?.id || req.query['data.id'] || req.query.id || req.body?.id;
+    if (!id || (topic && topic !== 'payment')) return;
+
+    const pay = await getPayment(id);
+    if (pay.status !== 'approved') return;
+
+    const { data: payment } = await sb().from('payments').select('*').eq('mp_payment_id', String(id)).maybeSingle();
+    const leadId = payment?.lead_id || pay.externalReference;
+    if (payment) {
+      await sb().from('payments').update({ status: 'pago', paid_at: new Date().toISOString() }).eq('id', payment.id);
+    }
+    if (leadId) {
+      await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);
+      const { data: lead } = await sb().from('leads').select('name,phone').eq('id', leadId).maybeSingle();
+      if (lead) {
+        const nome = (lead.name || '').split(' ')[0];
+        try {
+          await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉🧡\nSeu acesso completo HyperFlick já está ativo. Bom divertimento! 📺` });
+        } catch (e) { /* ignore */ }
+      }
+    }
+  } catch (err) {
+    console.error('webhook mercadopago', err.message);
   }
 });
 

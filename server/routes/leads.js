@@ -3,6 +3,7 @@ import { sb } from '../supabase.js';
 import { requireAdmin } from '../middleware.js';
 import { normalizePhone, planPrice, planMonths } from '../lib/helpers.js';
 import { generateTestForLead, sendWhatsApp } from '../lib/service.js';
+import { sendPixForLead } from '../lib/followup.js';
 
 const router = Router();
 
@@ -139,6 +140,23 @@ router.post('/:id/message', async (req, res) => {
     await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
     res.json({ ok: true });
   } catch (err) { res.status(err.code === 'NO_INSTANCE' ? 409 : 500).json({ error: err.message }); }
+});
+
+// Gerar Pix (Mercado Pago) e enviar no WhatsApp
+router.post('/:id/pix', async (req, res) => {
+  try {
+    const { data: lead, error } = await sb().from('leads').select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    const { plan, amount, pix } = await sendPixForLead(lead);
+    const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const nome = (lead.name || '').split(' ')[0];
+    const text = `${nome}, aqui está o Pix do seu *Plano ${plan}* (R$ ${valor}) na HyperFlick 🧡\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que cair, seu acesso é liberado na hora! 🚀`;
+    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+    res.json({ ok: true, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
+  } catch (e) {
+    const code = e.code === 'NO_MP' ? 400 : (e.code === 'NO_INSTANCE' ? 409 : 500);
+    res.status(code).json({ error: e.message });
+  }
 });
 
 // Marcar como GANHO → cria cobrança pendente do plano

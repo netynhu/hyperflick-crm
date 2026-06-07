@@ -36,6 +36,13 @@ export const config = {
   },
 
   crmAdminKey: process.env.CRM_ADMIN_KEY || '',
+
+  mercadopago: {
+    accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '',
+  },
+
+  // Segredo para proteger o endpoint de cron (follow-up automático)
+  cronSecret: process.env.CRON_SECRET || '',
 };
 
 // Avisos de configuração ausente (não derruba o servidor — funil ainda abre)

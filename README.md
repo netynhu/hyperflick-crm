@@ -112,6 +112,24 @@ validade e `payUrl`. Em seguida o sistema:
 
 Se `PANEL_CHATBOT_URL` não estiver configurado, cai num gerador local de exemplo (para testes).
 
+## Follow-up automático + Pix (Mercado Pago)
+
+Depois que o lead recebe o teste, o sistema dispara sozinho:
+1. **Welcome** (~1h depois) — "conseguiu instalar?"
+2. **Pix** (~1h antes de expirar) — cobra o plano escolhido com *Pix copia-e-cola* + link.
+3. **Win-back** (dia seguinte, se não comprou) — novo Pix.
+
+Quando o cliente paga, o **webhook do Mercado Pago** marca a cobrança como **paga** e move o lead para **Ganho** automaticamente.
+
+### Configurar
+1. `.env` / Vercel: `MERCADOPAGO_ACCESS_TOKEN` (Access Token de produção) e `CRON_SECRET` (string aleatória).
+2. Rode de novo o [`supabase/schema.sql`](supabase/schema.sql) — cria a tabela `followups` e as colunas de Pix (idempotente).
+3. **Webhook do Mercado Pago:** em *Suas integrações → Webhooks*, aponte para `https://SEU-DOMINIO/api/webhook/mercadopago` (evento **Pagamentos**).
+4. **Agendador:** o follow-up precisa rodar a cada ~15 min. Como o plano **Hobby** da Vercel roda cron só 1x/dia, use um cron externo grátis (ex.: [cron-job.org](https://cron-job.org)) batendo em:
+   `https://SEU-DOMINIO/api/cron/followup?token=SEU_CRON_SECRET` — a cada 15 minutos.
+
+No CRM, o botão **💠 Enviar Pix** no detalhe do lead gera e envia o Pix na hora.
+
 ## Estrutura
 
 ```

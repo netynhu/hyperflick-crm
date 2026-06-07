@@ -49,9 +49,10 @@ create trigger trg_leads_updated before update on leads
 for each row execute function set_updated_at();
 
 -- Migração para bases já criadas (idempotente)
-alter table leads add column if not exists test_dns     text;
-alter table leads add column if not exists test_package text;
-alter table leads add column if not exists pay_url      text;
+alter table leads add column if not exists test_dns        text;
+alter table leads add column if not exists test_package    text;
+alter table leads add column if not exists pay_url         text;
+alter table leads add column if not exists test_created_at timestamptz;
 
 -- ============================================================
 -- PAYMENTS  (cobranças / financeiro — quem pagou, quem não)
@@ -75,6 +76,12 @@ create table if not exists payments (
 create index if not exists payments_lead_idx on payments (lead_id);
 create index if not exists payments_status_idx on payments (status);
 create index if not exists payments_due_idx on payments (due_date);
+
+-- Mercado Pago (Pix) — migração idempotente
+alter table payments add column if not exists mp_payment_id  text;
+alter table payments add column if not exists pix_code       text;  -- copia e cola
+alter table payments add column if not exists pix_ticket_url text;  -- link do Pix
+create index if not exists payments_mp_idx on payments (mp_payment_id);
 
 drop trigger if exists trg_payments_updated on payments;
 create trigger trg_payments_updated before update on payments
@@ -132,6 +139,17 @@ insert into settings (key, value) values
   ('template_teste', '{"text":"🎬 *HyperFlick* — seu TESTE GRÁTIS está liberado, {nome}! 🧡\n\n📲 *App:* {app}\n🌐 *Servidor/URL:* {url}\n👤 *Usuário:* {usuario}\n🔑 *Senha:* {senha}\n⏳ *Validade:* {validade}\n\nÉ só abrir o app, colocar esses dados e aproveitar +800 canais, +60mil filmes e séries em 4K. Qualquer dúvida na instalação, chama aqui! 👇"}'),
   ('template_followup', '{"text":"Oi {nome}! Aqui é da HyperFlick 🧡 Conseguiu testar? Tô aqui pra te ajudar a deixar tudo funcionando e liberar seu acesso completo com desconto. Posso te mandar os planos?"}')
 on conflict (key) do nothing;
+
+-- ============================================================
+-- FOLLOWUPS  (controle de disparos automáticos por lead — evita duplicar)
+-- ============================================================
+create table if not exists followups (
+  id         uuid primary key default gen_random_uuid(),
+  lead_id    uuid references leads(id) on delete cascade,
+  type       text not null,            -- welcome | expiring | winback
+  sent_at    timestamptz default now()
+);
+create unique index if not exists followups_lead_type on followups (lead_id, type);
 
 -- ============================================================
 -- VIEW: resumo financeiro

@@ -314,6 +314,9 @@ async function openLead(id) {
         <button class="btn sm" onclick="genTest('${l.id}')">🎁 Gerar/Reenviar teste</button>
         <button class="btn sm green" onclick="markWon('${l.id}')">✅ Ganhou</button>
       </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" style="background:#0a8a4a" onclick="genPix('${l.id}')">💠 Enviar Pix (${esc(l.plan || 'plano')})</button>
+      </div>
 
       <div class="divider"></div>
       <label style="font-size:12px;color:var(--muted);font-weight:600">Conversa (WhatsApp)</label>
@@ -356,6 +359,14 @@ async function genTest(id) {
 async function markWon(id) {
   try { await api('/leads/' + id + '/won', { method: 'POST', body: JSON.stringify({}) }); toast('Marcado como ganho 🎉'); openLead(id); loadKanban(); }
   catch (e) { toast('Erro: ' + e.message); }
+}
+async function genPix(id) {
+  toast('Gerando Pix...');
+  try {
+    const r = await api('/leads/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) });
+    toast('Pix enviado ✅ ' + (r.plan || '') + ' R$ ' + (r.amount || ''));
+    openLead(id);
+  } catch (e) { toast('Erro: ' + e.message); }
 }
 async function sendMsg(id) {
   const input = document.getElementById('dMsg'); const text = input.value.trim();

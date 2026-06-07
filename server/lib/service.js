@@ -109,6 +109,7 @@ export async function generateTestForLead(lead) {
     test_package: test.package || null,
     pay_url: test.payUrl || null,
     test_expires_at: expires.toISOString(),
+    test_created_at: new Date().toISOString(),
   }).eq('id', lead.id);
 
   // 3) monta a mensagem CONFORME O APP escolhido (extrai do reply do painel) e envia via uazapi
