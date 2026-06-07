@@ -4,7 +4,7 @@ import { requireAdmin } from '../middleware.js';
 import { config } from '../config.js';
 import { planMonthly, normalizePhone } from '../lib/helpers.js';
 import { createPixPayment } from '../lib/mercadopago.js';
-import { sendWhatsApp } from '../lib/service.js';
+import { sendWhatsApp, notifyAdmin } from '../lib/service.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -118,6 +118,12 @@ router.patch('/:id', async (req, res) => {
     if (upd.status === 'pago' && !upd.paid_at) upd.paid_at = new Date().toISOString();
     const { data, error } = await sb().from('payments').update(upd).eq('id', req.params.id).select().single();
     if (error) throw error;
+    // avisa o admin quando uma cobrança é marcada como paga manualmente
+    if (upd.status === 'pago' && data.lead_id) {
+      const { data: lead } = await sb().from('leads').select('name').eq('id', data.lead_id).maybeSingle();
+      const valor = Number(data.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead?.name || '-'}\nPlano: ${data.plan || '-'}\nValor: R$ ${valor}`);
+    }
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

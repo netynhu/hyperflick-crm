@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { hasSupabase } from '../supabase.js';
 import { normalizePhone, planMonths } from '../lib/helpers.js';
-import { logMessage, sendWhatsApp } from '../lib/service.js';
+import { logMessage, sendWhatsApp, notifyAdmin } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
 import { deliverPixToLead } from '../lib/followup.js';
 
@@ -97,8 +97,11 @@ router.post('/mercadopago', async (req, res) => {
               if (lead) {
                 const nome = (lead.name || '').split(' ')[0];
                 try {
-                  await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉🧡\nSeu acesso completo HyperFlick já está ativo. Bom divertimento! 📺` });
+                  await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
                 } catch (e) { /* ignore */ }
+                // avisa o admin da venda
+                const valor = Number(payment?.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead.name}\nPlano: ${payment?.plan || '-'}\nValor: R$ ${valor}\nForma: Pix`);
               }
             }
           }

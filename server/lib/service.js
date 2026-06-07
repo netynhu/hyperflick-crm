@@ -54,6 +54,18 @@ export async function logMessage({ leadId, phone, direction, body, messageId = n
   }
 }
 
+// Notifica o número admin (configurado em settings.admin_phone) — sem registrar como conversa.
+export async function notifyAdmin(text) {
+  try {
+    const { data } = await sb().from('settings').select('value').eq('key', 'admin_phone').maybeSingle();
+    const phone = data?.value?.phone;
+    if (!phone) return;
+    const inst = await getActiveInstance();
+    if (!inst) return;
+    await uazapi.sendText(inst.token, normalizePhone(phone), text);
+  } catch (e) { console.error('notifyAdmin', e.message); }
+}
+
 // Gera o teste para um lead:
 //  1) cria o teste REAL no painel (uhdpainel) e pega usuário/senha/DNS/validade
 //  2) salva tudo no CRM e move o lead para "testando"

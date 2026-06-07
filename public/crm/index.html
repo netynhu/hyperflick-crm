@@ -4,145 +4,145 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HyperFlick — CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0b0712;--bg2:rgba(255,255,255,.03);--card:rgba(31,21,48,.6);--soft:rgba(255,255,255,.06);
-    --orange:#ff7a1a;--orange-2:#ffa64d;--orange-deep:#f5521e;
-    --green:#34d399;--red:#fb7185;--blue:#60a5fa;--yellow:#fbbf24;
-    --text:#fdfbff;--muted:#a89db9;--faint:#6f6589;--border:rgba(255,255,255,.09);
-    --glow:rgba(255,122,26,.4);
+    --bg:#f6f7f9;--panel:#fff;--panel-2:#fafbfc;
+    --ink:#16181d;--ink-2:#3a3d46;--muted:#6b7280;--faint:#9ca3af;
+    --border:#e8eaee;--border-2:#eef0f3;
+    --orange:#f5611e;--orange-deep:#e24f10;--orange-soft:#fff1ea;
+    --green:#0f9d58;--green-bg:#e8f6ee;--red:#e5484d;--red-bg:#fdecec;--yellow:#b7791f;--yellow-bg:#fbf3e3;
+    --sh-sm:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.05);
+    --sh-md:0 4px 14px rgba(16,24,40,.08);--sh-lg:0 16px 44px rgba(16,24,40,.16);
   }
   *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif}
-  body{background:var(--bg);color:var(--text);font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.011em;min-height:100vh}
-  body::before{content:'';position:fixed;inset:0;z-index:-1;background:
-    radial-gradient(48% 40% at 100% -5%,rgba(255,122,26,.13),transparent 60%),
-    radial-gradient(45% 45% at -5% 105%,rgba(245,82,30,.10),transparent 60%),var(--bg)}
-  ::-webkit-scrollbar{height:10px;width:10px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:6px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
-  a{color:var(--orange-2)}
+  body{background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-.011em}
+  ::-webkit-scrollbar{height:10px;width:10px}::-webkit-scrollbar-thumb{background:#d7dae0;border-radius:6px}::-webkit-scrollbar-thumb:hover{background:#c3c7cf}
+  a{color:var(--orange-deep);text-decoration:none}a:hover{text-decoration:underline}
   button{font-family:inherit;cursor:pointer}
   .hidden{display:none!important}
 
-  /* layout */
-  header{position:sticky;top:0;z-index:40;background:rgba(15,9,22,.7);backdrop-filter:blur(18px) saturate(1.3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;padding:13px 24px}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.02em}
-  .brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#ff8a3a,#f5521e);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px -6px var(--glow)}
-  .brand .logo svg{width:18px;height:18px;stroke:#fff}.brand b{background:linear-gradient(90deg,#ff7a1a,#ffb05a);-webkit-background-clip:text;background-clip:text;color:transparent}
-  nav{display:flex;gap:4px;margin-left:10px}
-  nav button{background:transparent;border:none;color:var(--muted);padding:9px 15px;border-radius:10px;font-weight:600;font-size:14px;transition:all .2s}
-  nav button.active{background:linear-gradient(135deg,#ff7a1a,#f5521e);color:#fff;box-shadow:0 8px 20px -8px var(--glow)}
-  nav button:hover{color:#fff}
-  .wa-status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
-  .dot{width:9px;height:9px;border-radius:50%;background:#555}.dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}.dot.off{background:var(--red)}
-  main{padding:22px}
+  header{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:18px;padding:12px 26px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:-.02em;color:var(--ink)}
+  .brand .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#ff8a3a,#f5521e);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px -6px rgba(245,82,30,.5)}
+  .brand .logo svg{width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2}
+  .brand b{color:var(--orange-deep)}
+  nav{display:flex;gap:2px;margin-left:14px}
+  nav button{display:inline-flex;align-items:center;gap:7px;background:transparent;border:none;color:var(--muted);padding:8px 13px;border-radius:9px;font-weight:600;font-size:13.5px;transition:all .15s}
+  nav button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9}
+  nav button:hover{background:var(--border-2);color:var(--ink)}
+  nav button.active{background:var(--orange-soft);color:var(--orange-deep)}
+  .wa-status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-weight:500}
+  .dot{width:8px;height:8px;border-radius:50%;background:#c7ccd4}.dot.on{background:var(--green);box-shadow:0 0 0 3px rgba(15,157,88,.16)}.dot.off{background:var(--red)}
+  main{padding:26px;max-width:1300px;margin:0 auto}
 
-  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
-  .stat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px 20px;backdrop-filter:blur(16px);box-shadow:0 14px 32px -20px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.05)}
-  .stat .lbl{color:var(--muted);font-size:13px;font-weight:600}
-  .stat .val{font-size:28px;font-weight:800;margin-top:6px;letter-spacing:-.02em}
-  .stat .val.green{color:var(--green)}.stat .val.orange{color:var(--orange-2)}.stat .val.red{color:var(--red)}.stat .val.yellow{color:var(--yellow)}
+  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:26px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--sh-sm)}
+  .stat .lbl{color:var(--muted);font-size:12.5px;font-weight:600}
+  .stat .val{font-size:26px;font-weight:800;margin-top:7px;letter-spacing:-.03em;color:var(--ink)}
+  .stat .val.green{color:var(--green)}.stat .val.orange{color:var(--orange-deep)}.stat .val.red{color:var(--red)}.stat .val.yellow{color:var(--yellow)}
+  .section-h{font-size:14px;font-weight:700;margin:8px 0 14px;color:var(--ink-2)}
 
-  .section-h{font-size:18px;font-weight:800;margin:6px 0 16px}
-
-  /* kanban */
   .board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:14px;align-items:start;overflow-x:auto;padding-bottom:10px}
-  .col{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:16px;padding:12px;min-height:120px}
-  .col.drag{border-color:rgba(255,122,26,.6);background:rgba(255,122,26,.08)}
-  .col-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.5px}
-  .col-h .count{background:rgba(255,255,255,.08);color:var(--muted);border-radius:8px;padding:2px 9px;font-size:12px}
-  .col-h .pip{width:9px;height:9px;border-radius:3px;margin-right:7px;display:inline-block;vertical-align:middle}
-  .lead-card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:13px;margin-bottom:10px;cursor:grab;transition:all .18s cubic-bezier(.2,.8,.2,1);backdrop-filter:blur(10px)}
-  .lead-card:hover{border-color:rgba(255,122,26,.5);transform:translateY(-2px);box-shadow:0 14px 28px -16px var(--glow)}
-  .lead-card .nm{font-weight:700}
-  .lead-card .meta{color:var(--muted);font-size:12px;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
-  .tag{display:inline-block;background:var(--soft);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600}
-  .tag.warn{background:rgba(234,179,8,.18);color:var(--yellow)}
-  .tag.exp{background:rgba(239,68,68,.18);color:var(--red)}
+  .col{background:var(--panel-2);border:1px solid var(--border);border-radius:14px;padding:12px;min-height:140px}
+  .col.drag{border-color:var(--orange);background:var(--orange-soft)}
+  .col-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-2)}
+  .col-h .count{background:#fff;border:1px solid var(--border);color:var(--muted);border-radius:7px;padding:1px 8px;font-size:11.5px}
+  .col-h .pip{width:8px;height:8px;border-radius:3px;margin-right:7px;display:inline-block;vertical-align:middle}
+  .lead-card{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:12px 13px;margin-bottom:9px;cursor:grab;box-shadow:var(--sh-sm);transition:all .15s}
+  .lead-card:hover{border-color:#d6d8de;box-shadow:var(--sh-md);transform:translateY(-1px)}
+  .lead-card .nm{font-weight:700;font-size:13.5px;color:var(--ink)}
+  .lead-card .meta{color:var(--muted);font-size:12px;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .tag{display:inline-block;background:var(--border-2);color:var(--ink-2);border-radius:6px;padding:1px 7px;font-size:11px;font-weight:600}
+  .tag.warn{background:var(--yellow-bg);color:var(--yellow)}.tag.exp{background:var(--red-bg);color:var(--red)}
 
-  /* table */
-  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:14px;overflow:hidden;border:1px solid var(--border);backdrop-filter:blur(16px)}
-  th,td{text-align:left;padding:13px 15px;border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
-  th{color:var(--muted);font-weight:700;background:rgba(255,255,255,.03);text-transform:uppercase;font-size:11px;letter-spacing:.5px}
-  tbody tr{transition:background .15s}tbody tr:hover{background:rgba(255,255,255,.025)}
-  .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700}
-  .pill.pago{background:rgba(34,197,94,.18);color:var(--green)}
-  .pill.pendente{background:rgba(234,179,8,.18);color:var(--yellow)}
-  .pill.atrasado{background:rgba(239,68,68,.18);color:var(--red)}
-  .pill.cancelado{background:#33283f;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:14px;overflow:hidden;border:1px solid var(--border);box-shadow:var(--sh-sm)}
+  th,td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--border-2);font-size:13px;color:var(--ink-2)}
+  th{color:var(--faint);font-weight:600;background:var(--panel-2);text-transform:uppercase;font-size:11px;letter-spacing:.4px}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr{transition:background .12s}tbody tr:hover{background:var(--panel-2)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600}
+  .pill.pago{background:var(--green-bg);color:var(--green)}.pill.pendente{background:var(--yellow-bg);color:var(--yellow)}
+  .pill.atrasado{background:var(--red-bg);color:var(--red)}.pill.cancelado{background:var(--border-2);color:var(--muted)}
 
-  .btn{background:linear-gradient(135deg,#ff8a3a,#f5521e);color:#fff;border:none;padding:9px 16px;border-radius:10px;font-weight:700;font-size:13px;transition:all .18s;box-shadow:0 8px 20px -10px var(--glow)}
-  .btn:hover{filter:brightness(1.06);transform:translateY(-1px)}
+  .btn{background:var(--orange);color:#fff;border:none;padding:9px 15px;border-radius:9px;font-weight:600;font-size:13px;transition:all .15s;box-shadow:var(--sh-sm)}
+  .btn:hover{background:var(--orange-deep)}
   .btn.sm{padding:6px 11px;font-size:12px}
-  .btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);box-shadow:none}
-  .btn.ghost:hover{color:#fff;border-color:rgba(255,255,255,.2)}
-  .btn.green{background:linear-gradient(135deg,#34d399,#10b981);color:#04210f}
-  .btn.red{background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.4);color:#fda4a4;box-shadow:none}
+  .btn.ghost{background:#fff;border:1px solid var(--border);color:var(--ink-2);box-shadow:none}
+  .btn.ghost:hover{background:var(--panel-2);border-color:#d7dae0}
+  .btn.green{background:var(--green)}.btn.green:hover{background:#0c854a}
+  .btn.red{background:#fff;border:1px solid var(--red-bg);color:var(--red);box-shadow:none}.btn.red:hover{background:var(--red-bg)}
 
-  /* drawer */
-  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:50;display:flex;justify-content:flex-end}
-  .drawer{width:440px;max-width:100%;background:rgba(20,13,32,.85);backdrop-filter:blur(28px) saturate(1.3);height:100%;overflow-y:auto;padding:24px;border-left:1px solid var(--border);animation:slide .28s cubic-bezier(.2,.8,.2,1);box-shadow:-30px 0 70px -24px rgba(0,0,0,.7)}
-  @keyframes slide{from{transform:translateX(36px);opacity:0}to{transform:none;opacity:1}}
-  .drawer h3{font-size:20px;font-weight:800}
-  .drawer .sub{color:var(--muted);font-size:13px;margin-top:2px}
-  .field{margin:14px 0}
-  .field label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:5px}
-  input,select,textarea{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:11px;padding:11px 13px;color:#fff;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s}
-  input:focus,select:focus,textarea:focus{border-color:rgba(255,122,26,.6);box-shadow:0 0 0 3px rgba(255,122,26,.12)}
+  .overlay{position:fixed;inset:0;background:rgba(16,18,24,.35);backdrop-filter:blur(2px);z-index:50;display:flex;justify-content:flex-end}
+  .drawer{position:relative;width:444px;max-width:100%;background:var(--panel);height:100%;overflow-y:auto;padding:24px;border-left:1px solid var(--border);animation:slide .26s cubic-bezier(.2,.8,.2,1);box-shadow:var(--sh-lg)}
+  @keyframes slide{from{transform:translateX(28px);opacity:0}to{transform:none;opacity:1}}
+  .drawer h3{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.02em}
+  .drawer .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .field{margin:15px 0}
+  .field label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px}
+  input,select,textarea{width:100%;background:#fff;border:1px solid var(--border);border-radius:9px;padding:10px 12px;color:var(--ink);font-size:13.5px;outline:none;transition:border-color .15s,box-shadow .15s}
+  input:focus,select:focus,textarea:focus{border-color:var(--orange);box-shadow:0 0 0 3px var(--orange-soft)}
+  input::placeholder{color:var(--faint)}
   .row{display:flex;gap:8px}.row>*{flex:1}
-  .chat{background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:13px;padding:13px;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
-  .msg{max-width:82%;padding:9px 12px;border-radius:13px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
-  .msg.out{align-self:flex-end;background:linear-gradient(135deg,rgba(255,122,26,.24),rgba(245,82,30,.14));border:1px solid rgba(255,122,26,.3);border-bottom-right-radius:4px}
-  .msg.in{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--border);border-bottom-left-radius:4px}
-  .msg .tm{display:block;font-size:10px;color:var(--muted);margin-top:3px}
-  .divider{height:1px;background:rgba(255,255,255,.07);margin:18px 0}
-  .x{position:absolute;top:18px;right:22px;background:none;border:none;color:var(--muted);font-size:22px}
+  .chat{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:13px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .msg{max-width:82%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+  .msg.out{align-self:flex-end;background:var(--orange);color:#fff;border-bottom-right-radius:4px}
+  .msg.out .tm{color:rgba(255,255,255,.82)}
+  .msg.in{align-self:flex-start;background:#fff;border:1px solid var(--border);color:var(--ink);border-bottom-left-radius:4px}
+  .msg .tm{display:block;font-size:10px;color:var(--faint);margin-top:3px}
+  .divider{height:1px;background:var(--border);margin:18px 0}
+  .x{position:absolute;top:20px;right:24px;background:none;border:none;color:var(--faint);font-size:22px;line-height:1}.x:hover{color:var(--ink)}
+  .inst{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--sh-sm)}
 
-  /* whatsapp / qr modal */
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
-  .modal .box{background:rgba(20,13,32,.9);backdrop-filter:blur(28px) saturate(1.3);border:1px solid var(--border);border-radius:20px;padding:28px;max-width:420px;width:100%;text-align:center;position:relative;box-shadow:0 40px 90px -30px rgba(0,0,0,.8)}
-  .qr{background:#fff;border-radius:14px;padding:12px;width:260px;height:260px;margin:14px auto;display:flex;align-items:center;justify-content:center;box-shadow:0 16px 40px -12px rgba(0,0,0,.5)}
+  .modal{position:fixed;inset:0;background:rgba(16,18,24,.4);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+  .modal .box{background:#fff;border:1px solid var(--border);border-radius:18px;padding:28px;max-width:420px;width:100%;text-align:center;position:relative;box-shadow:var(--sh-lg)}
+  .qr{background:#fff;border:1px solid var(--border);border-radius:14px;padding:12px;width:258px;height:258px;margin:16px auto;display:flex;align-items:center;justify-content:center}
   .qr img{width:100%;height:100%;object-fit:contain}
-  .inst{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;backdrop-filter:blur(12px)}
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(25,16,38,.92);backdrop-filter:blur(16px);border:1px solid rgba(255,122,26,.5);color:#fff;padding:13px 22px;border-radius:13px;z-index:80;font-weight:600;box-shadow:0 18px 44px -12px rgba(0,0,0,.6)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:11px;z-index:80;font-weight:500;font-size:13px;box-shadow:var(--sh-lg)}
 
-  /* login */
-  .login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:100}
-  .login .box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:36px;width:340px;text-align:center;backdrop-filter:blur(28px) saturate(1.3);box-shadow:0 40px 90px -30px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.06)}
-  @media(max-width:860px){.board{grid-template-columns:repeat(5,minmax(200px,1fr))}}
+  .card-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:var(--sh-sm);margin-bottom:16px;max-width:760px}
+  .card-box h4{font-size:15px;font-weight:700;color:var(--ink)}
+  .card-box .desc{font-size:12.5px;color:var(--muted);margin:4px 0 16px}
+
+  .login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
+  .login .box{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:36px;width:352px;text-align:center;box-shadow:var(--sh-lg)}
+  .login .box .p{color:var(--muted);margin-bottom:18px;font-size:13px}
+  @media(max-width:900px){.board{grid-template-columns:repeat(5,minmax(200px,1fr))}main{padding:18px}nav button span{display:none}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <!-- LOGIN -->
 <div class="login" id="login">
   <div class="box">
-    <div class="brand" style="justify-content:center;margin-bottom:8px"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
-    <p style="color:var(--muted);margin-bottom:18px">Painel CRM</p>
+    <div class="brand" style="justify-content:center;margin-bottom:10px"><span class="logo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
+    <div class="p">Painel administrativo</div>
     <input id="loginEmail" type="email" placeholder="E-mail" autocomplete="username" style="margin-bottom:10px" onkeydown="if(event.key==='Enter')doLogin()">
-    <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()">
+    <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password" style="margin-bottom:14px" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn" style="width:100%" onclick="doLogin()">Entrar</button>
-    <p id="loginErr" style="color:var(--red);font-size:12px;margin-top:10px;min-height:14px"></p>
+    <p id="loginErr" style="color:var(--red);font-size:12px;margin-top:12px;min-height:14px"></p>
   </div>
 </div>
 
 <!-- APP -->
 <div id="app" class="hidden">
   <header>
-    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
     <nav>
-      <button data-tab="dash" class="active" onclick="tab('dash')">📊 Dashboard</button>
-      <button data-tab="kanban" onclick="tab('kanban')">🗂️ CRM</button>
-      <button data-tab="fin" onclick="tab('fin')">💰 Financeiro</button>
-      <button data-tab="wa" onclick="tab('wa')">📱 WhatsApp</button>
+      <button data-tab="dash" class="active" onclick="tab('dash')"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Dashboard</span></button>
+      <button data-tab="kanban" onclick="tab('kanban')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg><span>CRM</span></button>
+      <button data-tab="fin" onclick="tab('fin')"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M2.5 10h19"/></svg><span>Financeiro</span></button>
+      <button data-tab="config" onclick="tab('config')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V20a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 18.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 5 13a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 6.6L4.9 6.5a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11 4.6V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"/></svg><span>Configurações</span></button>
     </nav>
     <div class="wa-status" id="waStatus"><span class="dot"></span> verificando...</div>
   </header>
-
   <main>
     <section id="dash"></section>
     <section id="kanban" class="hidden"></section>
     <section id="fin" class="hidden"></section>
-    <section id="wa" class="hidden"></section>
+    <section id="config" class="hidden"></section>
   </main>
 </div>
 
@@ -150,56 +150,39 @@
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ===================== AUTH (Supabase) ===================== */
 let supa = null;
 async function initSupa() {
   if (supa) return supa;
   const cfg = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
-  if (cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase) {
-    supa = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-  }
+  if (cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase) supa = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
   return supa;
 }
-async function accessToken() {
-  if (!supa) return '';
-  const { data } = await supa.auth.getSession();
-  return data?.session?.access_token || '';
-}
+async function accessToken() { if (!supa) return ''; const { data } = await supa.auth.getSession(); return data?.session?.access_token || ''; }
 
 /* ===================== API ===================== */
 async function api(path, opts = {}) {
   const token = await accessToken();
-  const res = await fetch('/api' + path, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) },
-  });
+  const res = await fetch('/api' + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(opts.headers || {}) } });
   if (res.status === 401) { logout(); throw new Error('Não autorizado'); }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || ('Erro ' + res.status));
   return data;
 }
-function toast(msg) {
-  const r = document.getElementById('toastRoot');
-  r.innerHTML = `<div class="toast">${msg}</div>`;
-  setTimeout(() => (r.innerHTML = ''), 3000);
-}
+function toast(msg) { const r = document.getElementById('toastRoot'); r.innerHTML = `<div class="toast">${msg}</div>`; setTimeout(() => (r.innerHTML = ''), 3200); }
 const money = (v) => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const fmtDT = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /* ===================== LOGIN ===================== */
-function enterApp() {
-  document.getElementById('login').classList.add('hidden');
-  document.getElementById('app').classList.remove('hidden');
-  boot();
-}
+function enterApp() { document.getElementById('login').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); boot(); }
 async function doLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPass').value;
-  const errEl = document.getElementById('loginErr');
-  errEl.textContent = '';
+  const errEl = document.getElementById('loginErr'); errEl.textContent = '';
   await initSupa();
   if (!supa) { errEl.textContent = 'Supabase não configurado no servidor.'; return; }
   const { error } = await supa.auth.signInWithPassword({ email, password });
@@ -210,14 +193,14 @@ async function logout() { if (supa) await supa.auth.signOut(); location.reload()
 
 /* ===================== TABS ===================== */
 function tab(name) {
-  ['dash', 'kanban', 'fin', 'wa'].forEach(t => {
+  ['dash', 'kanban', 'fin', 'config'].forEach(t => {
     document.getElementById(t).classList.toggle('hidden', t !== name);
     document.querySelector(`nav button[data-tab="${t}"]`).classList.toggle('active', t === name);
   });
   if (name === 'dash') loadDash();
   if (name === 'kanban') loadKanban();
   if (name === 'fin') loadFin();
-  if (name === 'wa') loadWa();
+  if (name === 'config') loadConfig();
 }
 
 /* ===================== DASHBOARD ===================== */
@@ -226,11 +209,11 @@ async function loadDash() {
   document.getElementById('dash').innerHTML = `
     <div class="grid-stats">
       <div class="stat"><div class="lbl">Total de leads</div><div class="val">${s.totalLeads}</div></div>
-      <div class="stat"><div class="lbl">Conversão (ganho)</div><div class="val orange">${s.conversao}%</div></div>
+      <div class="stat"><div class="lbl">Conversão</div><div class="val orange">${s.conversao}%</div></div>
       <div class="stat"><div class="lbl">MRR estimado</div><div class="val green">${money(s.mrr)}</div></div>
       <div class="stat"><div class="lbl">Recebido</div><div class="val green">${money(s.financeiro.recebido)}</div></div>
       <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(s.financeiro.pendente)}</div></div>
-      <div class="stat"><div class="lbl">Atrasado</div><div class="val red">${money(s.financeiro.atrasado)}</div></div>
+      <div class="stat"><div class="lbl">Lucro</div><div class="val ${s.financeiro.lucro >= 0 ? 'green' : 'red'}">${money(s.financeiro.lucro)}</div></div>
     </div>
     <div class="section-h">Funil</div>
     <div class="grid-stats">
@@ -241,35 +224,26 @@ async function loadDash() {
 
 /* ===================== KANBAN ===================== */
 const STAGES = [
-  { id: 'lead', label: 'Lead', color: '#a99fb8' },
-  { id: 'testando', label: 'Testando', color: '#ff6a1a' },
-  { id: 'ganho', label: 'Ganho', color: '#22c55e' },
-  { id: 'perdido', label: 'Perdido', color: '#ef4444' },
-  { id: 'followup', label: 'Follow-up', color: '#eab308' },
+  { id: 'lead', label: 'Lead', color: '#9aa0ac' },
+  { id: 'testando', label: 'Testando', color: '#f5611e' },
+  { id: 'ganho', label: 'Ganho', color: '#0f9d58' },
+  { id: 'perdido', label: 'Perdido', color: '#e5484d' },
+  { id: 'followup', label: 'Follow-up', color: '#b7791f' },
 ];
 let LEADS = [];
-async function loadKanban() {
-  LEADS = await api('/leads');
-  renderBoard();
-}
+async function loadKanban() { LEADS = await api('/leads'); renderBoard(); }
 function renderBoard() {
   const now = Date.now();
   document.getElementById('kanban').innerHTML = `<div class="board">${STAGES.map(st => {
     const items = LEADS.filter(l => l.stage === st.id);
-    return `<div class="col" data-stage="${st.id}"
-        ondragover="event.preventDefault();this.classList.add('drag')"
-        ondragleave="this.classList.remove('drag')"
-        ondrop="dropLead(event,'${st.id}')">
+    return `<div class="col" data-stage="${st.id}" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropLead(event,'${st.id}')">
       <div class="col-h"><span><span class="pip" style="background:${st.color}"></span>${st.label}</span><span class="count">${items.length}</span></div>
       ${items.map(l => {
         let exp = '';
-        if (l.test_expires_at) {
-          const left = new Date(l.test_expires_at).getTime() - now;
-          exp = left > 0 ? `<span class="tag warn">⏳ ${Math.ceil(left / 3600000)}h</span>` : `<span class="tag exp">teste expirado</span>`;
-        }
+        if (l.test_expires_at) { const left = new Date(l.test_expires_at).getTime() - now; exp = left > 0 ? `<span class="tag warn">${Math.ceil(left / 3600000)}h restantes</span>` : `<span class="tag exp">teste expirado</span>`; }
         return `<div class="lead-card" draggable="true" ondragstart="dragLead(event,'${l.id}')" onclick="openLead('${l.id}')">
           <div class="nm">${esc(l.name)}</div>
-          <div class="meta"><span>📱 ${esc(l.phone)}</span>${l.plan ? `<span class="tag">${esc(l.plan)}</span>` : ''}${exp}</div>
+          <div class="meta"><span>${esc(l.phone)}</span>${l.plan ? `<span class="tag">${esc(l.plan)}</span>` : ''}${exp}</div>
         </div>`;
       }).join('')}
     </div>`;
@@ -287,66 +261,66 @@ async function dropLead(e, stage) {
   try {
     if (stage === 'ganho') await api('/leads/' + dragId + '/won', { method: 'POST', body: JSON.stringify({}) });
     else await api('/leads/' + dragId, { method: 'PATCH', body: JSON.stringify({ stage }) });
-    toast('Movido para ' + stage);
+    toast('Lead movido para ' + stage);
   } catch (err) { toast('Erro: ' + err.message); loadKanban(); }
   dragId = null;
 }
 
-/* ===================== DRAWER (detalhe do lead) ===================== */
+/* ===================== DRAWER + AUTO-REFRESH ===================== */
+let chatPoll = null, currentLeadId = null;
+function chatHtml(msgs) {
+  return (msgs || []).map(m => `<div class="msg ${m.direction}">${esc(m.body)}<span class="tm">${fmtDT(m.created_at)}${m.status === 'failed' ? ' · falhou' : ''}</span></div>`).join('')
+    || '<p style="color:var(--muted);font-size:13px">Sem mensagens ainda.</p>';
+}
 async function openLead(id) {
   const l = await api('/leads/' + id);
-  const msgs = (l.messages || []).map(m => `<div class="msg ${m.direction}">${esc(m.body)}<span class="tm">${fmtDT(m.created_at)}${m.status === 'failed' ? ' • falhou' : ''}</span></div>`).join('') || '<p style="color:var(--muted);font-size:13px">Sem mensagens ainda.</p>';
-  const pays = (l.payments || []).map(p => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span>${money(p.amount)} · ${esc(p.plan || '')}</span><span class="pill ${p.status}">${p.status}</span></div>`).join('') || '<p style="color:var(--muted);font-size:13px">Nenhuma cobrança.</p>';
+  const pays = (l.payments || []).map(p => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0"><span>${money(p.amount)} · ${esc(p.plan || '')}</span><span class="pill ${p.status}">${p.status}</span></div>`).join('') || '<p style="color:var(--muted);font-size:13px">Nenhuma cobrança.</p>';
   document.getElementById('drawerRoot').innerHTML = `
    <div class="overlay" onclick="if(event.target===this)closeDrawer()">
     <div class="drawer">
       <button class="x" onclick="closeDrawer()">×</button>
       <h3>${esc(l.name)}</h3>
-      <div class="sub">📱 ${esc(l.phone)} · ${esc(l.plan || 'sem plano')} · ${esc(l.stage)}${l.app ? ' · 📲 ' + esc(l.app) : ''}</div>
+      <div class="sub">${esc(l.phone)} · ${esc(l.plan || 'sem plano')} · ${esc(l.stage)}${l.app ? ' · ' + esc(l.app) : ''}</div>
       ${l.test_username ? `<div class="field"><label>Acesso de teste</label>
         <div class="inst" style="flex-direction:column;align-items:flex-start;gap:5px">
-          <span>👤 Usuário: <b>${esc(l.test_username)}</b></span>
-          <span>🔑 Senha: <b>${esc(l.test_password)}</b></span>
-          ${l.app ? `<span style="color:var(--muted);font-size:12px">📲 App instalado: ${esc(l.app)}</span>` : ''}
+          <span>Usuário: <b>${esc(l.test_username)}</b></span>
+          <span>Senha: <b>${esc(l.test_password)}</b></span>
+          ${l.app ? `<span style="color:var(--muted);font-size:12px">App instalado: ${esc(l.app)}</span>` : ''}
         </div></div>` : ''}
-
       <div class="field"><label>Etapa</label>
         <select id="dStage" onchange="changeStage('${l.id}',this.value)">
           ${STAGES.map(s => `<option value="${s.id}" ${s.id === l.stage ? 'selected' : ''}>${s.label}</option>`).join('')}
         </select>
       </div>
-
-      <div class="row">
-        <button class="btn sm" onclick="genTest('${l.id}')">🎁 Gerar/Reenviar teste</button>
-        <button class="btn sm green" onclick="markWon('${l.id}')">✅ Ganhou</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn sm" style="background:#0a8a4a" onclick="genPix('${l.id}')">💠 Enviar Pix (${esc(l.plan || 'plano')})</button>
-      </div>
-
+      <div class="row"><button class="btn sm ghost" onclick="genTest('${l.id}')">Gerar teste</button><button class="btn sm green" onclick="markWon('${l.id}')">Marcar ganho</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn sm" onclick="genPix('${l.id}')">Enviar Pix · ${esc(l.plan || 'plano')}</button></div>
       <div class="divider"></div>
       <label style="font-size:12px;color:var(--muted);font-weight:600">Conversa (WhatsApp)</label>
-      <div class="chat" style="margin-top:6px">${msgs}</div>
-      <div class="row">
-        <input id="dMsg" placeholder="Escreva uma mensagem..." onkeydown="if(event.key==='Enter')sendMsg('${l.id}')">
-        <button class="btn sm" style="flex:0 0 auto" onclick="sendMsg('${l.id}')">Enviar</button>
-      </div>
-
+      <div class="chat" id="chatBox" style="margin-top:6px">${chatHtml(l.messages)}</div>
+      <div class="row"><input id="dMsg" placeholder="Escreva uma mensagem..." onkeydown="if(event.key==='Enter')sendMsg('${l.id}')"><button class="btn sm" style="flex:0 0 auto" onclick="sendMsg('${l.id}')">Enviar</button></div>
       <div class="divider"></div>
       <label style="font-size:12px;color:var(--muted);font-weight:600">Cobranças</label>
       <div style="margin:6px 0">${pays}</div>
-
       <div class="field"><label>Anotações</label>
         <textarea id="dNotes" rows="3" placeholder="Observações internas...">${esc(l.notes || '')}</textarea>
         <button class="btn sm ghost" style="margin-top:8px" onclick="saveNotes('${l.id}')">Salvar nota</button>
       </div>
-
       <div class="divider"></div>
-      <button class="btn red sm" onclick="delLead('${l.id}')">🗑️ Excluir lead</button>
+      <button class="btn red sm" onclick="delLead('${l.id}')">Excluir lead</button>
     </div>
    </div>`;
+  const cb = document.getElementById('chatBox'); if (cb) cb.scrollTop = cb.scrollHeight;
+  currentLeadId = id; clearInterval(chatPoll); chatPoll = setInterval(() => refreshChat(id), 5000);
 }
-function closeDrawer() { document.getElementById('drawerRoot').innerHTML = ''; }
+async function refreshChat(id) {
+  if (currentLeadId !== id) return;
+  try {
+    const l = await api('/leads/' + id);
+    const box = document.getElementById('chatBox');
+    if (box) { const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 30; box.innerHTML = chatHtml(l.messages); if (atBottom) box.scrollTop = box.scrollHeight; }
+  } catch (e) { }
+}
+function closeDrawer() { clearInterval(chatPoll); currentLeadId = null; document.getElementById('drawerRoot').innerHTML = ''; }
 async function changeStage(id, stage) {
   try {
     if (stage === 'ganho') await api('/leads/' + id + '/won', { method: 'POST', body: JSON.stringify({}) });
@@ -356,70 +330,38 @@ async function changeStage(id, stage) {
 }
 async function genTest(id) {
   toast('Gerando teste...');
-  try {
-    const r = await api('/leads/' + id + '/test', { method: 'POST', body: JSON.stringify({}) });
-    toast(r.whatsappSent ? 'Teste enviado no WhatsApp ✅' : 'Teste gerado — WhatsApp: ' + (r.whatsappError || 'não enviado'));
-    openLead(id); loadKanban();
-  } catch (e) { toast('Erro: ' + e.message); }
-}
-async function markWon(id) {
-  try { await api('/leads/' + id + '/won', { method: 'POST', body: JSON.stringify({}) }); toast('Marcado como ganho 🎉'); openLead(id); loadKanban(); }
+  try { const r = await api('/leads/' + id + '/test', { method: 'POST', body: JSON.stringify({}) }); toast(r.whatsappSent ? 'Teste enviado no WhatsApp' : 'Teste gerado (WhatsApp: ' + (r.whatsappError || 'não enviado') + ')'); openLead(id); loadKanban(); }
   catch (e) { toast('Erro: ' + e.message); }
 }
-async function genPix(id) {
-  toast('Gerando Pix...');
-  try {
-    const r = await api('/leads/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) });
-    toast('Pix enviado ✅ ' + (r.plan || '') + ' R$ ' + (r.amount || ''));
-    openLead(id);
-  } catch (e) { toast('Erro: ' + e.message); }
-}
+async function markWon(id) { try { await api('/leads/' + id + '/won', { method: 'POST', body: JSON.stringify({}) }); toast('Marcado como ganho'); openLead(id); loadKanban(); } catch (e) { toast('Erro: ' + e.message); } }
+async function genPix(id) { toast('Gerando Pix...'); try { const r = await api('/leads/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) }); toast('Pix enviado · ' + (r.plan || '') + ' ' + money(r.amount)); openLead(id); } catch (e) { toast('Erro: ' + e.message); } }
 async function sendMsg(id) {
   const input = document.getElementById('dMsg'); const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  try { await api('/leads/' + id + '/message', { method: 'POST', body: JSON.stringify({ text }) }); openLead(id); }
+  if (!text) return; input.value = '';
+  try { await api('/leads/' + id + '/message', { method: 'POST', body: JSON.stringify({ text }) }); refreshChat(id); }
   catch (e) { toast('Erro: ' + e.message); input.value = text; }
 }
-async function saveNotes(id) {
-  const notes = document.getElementById('dNotes').value;
-  try { await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ notes }) }); toast('Nota salva'); }
-  catch (e) { toast('Erro: ' + e.message); }
-}
-async function delLead(id) {
-  if (!confirm('Excluir este lead?')) return;
-  try { await api('/leads/' + id, { method: 'DELETE' }); toast('Excluído'); closeDrawer(); loadKanban(); }
-  catch (e) { toast('Erro: ' + e.message); }
-}
+async function saveNotes(id) { const notes = document.getElementById('dNotes').value; try { await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ notes }) }); toast('Nota salva'); } catch (e) { toast('Erro: ' + e.message); } }
+async function delLead(id) { if (!confirm('Excluir este lead?')) return; try { await api('/leads/' + id, { method: 'DELETE' }); toast('Lead excluído'); closeDrawer(); loadKanban(); } catch (e) { toast('Erro: ' + e.message); } }
 
 /* ===================== FINANCEIRO ===================== */
 let finSub = 'resumo';
 function loadFin() {
   document.getElementById('fin').innerHTML = `
-    <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
-      <button class="btn sm ghost" data-fs="resumo" onclick="finTab('resumo')">📊 Resumo</button>
-      <button class="btn sm ghost" data-fs="cobrancas" onclick="finTab('cobrancas')">💳 Cobranças</button>
-      <button class="btn sm ghost" data-fs="despesas" onclick="finTab('despesas')">📉 Despesas</button>
-      <button class="btn sm ghost" data-fs="relatorios" onclick="finTab('relatorios')">📈 Relatórios</button>
+    <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:2px">
+      ${[['resumo', 'Resumo'], ['cobrancas', 'Cobranças'], ['despesas', 'Despesas'], ['relatorios', 'Relatórios']].map(([k, l]) => `<button data-fs="${k}" onclick="finTab('${k}')" style="background:transparent;border:none;color:var(--muted);font-weight:600;font-size:13.5px;padding:8px 14px;border-radius:8px 8px 0 0;border-bottom:2px solid transparent">${l}</button>`).join('')}
     </div>
     <div id="finBody"></div>`;
   finTab(finSub);
 }
 function finTab(t) {
   finSub = t;
-  document.querySelectorAll('#fin [data-fs]').forEach(b => {
-    const on = b.dataset.fs === t;
-    b.style.background = on ? 'linear-gradient(135deg,var(--orange),var(--orange-deep))' : 'transparent';
-    b.style.color = on ? '#fff' : 'var(--muted)';
-  });
+  document.querySelectorAll('#fin [data-fs]').forEach(b => { const on = b.dataset.fs === t; b.style.color = on ? 'var(--orange-deep)' : 'var(--muted)'; b.style.borderBottomColor = on ? 'var(--orange)' : 'transparent'; });
   ({ resumo: finResumo, cobrancas: finCobrancas, despesas: finDespesas, relatorios: finRelatorios }[t])();
 }
-
 async function finResumo() {
-  const s = await api('/payments/summary/all');
-  const f = s.financeiro;
-  document.getElementById('finBody').innerHTML = `
-    <div class="grid-stats">
+  const s = await api('/payments/summary/all'); const f = s.financeiro;
+  document.getElementById('finBody').innerHTML = `<div class="grid-stats">
       <div class="stat"><div class="lbl">Recebido</div><div class="val green">${money(f.recebido)}</div></div>
       <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(f.pendente)}</div></div>
       <div class="stat"><div class="lbl">Atrasado</div><div class="val red">${money(f.atrasado)}</div></div>
@@ -428,214 +370,153 @@ async function finResumo() {
       <div class="stat"><div class="lbl">MRR estimado</div><div class="val orange">${money(s.mrr)}</div></div>
     </div>`;
 }
-
 async function finCobrancas() {
   const rows = await api('/payments');
   document.getElementById('finBody').innerHTML = `
-    <div class="stat" style="margin-bottom:16px">
-      <div class="lbl" style="margin-bottom:8px">➕ Adicionar cobrança / cliente</div>
-      <div class="row" style="flex-wrap:wrap;gap:8px">
+    <div class="card-box" style="max-width:none">
+      <h4>Adicionar cobrança / cliente</h4>
+      <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:12px">
         <input id="mcName" placeholder="Nome do cliente" style="flex:2;min-width:140px">
         <input id="mcPhone" placeholder="WhatsApp (DDD)" style="flex:1;min-width:120px">
-        <input id="mcPlan" placeholder="Plano/descrição" style="flex:1;min-width:120px">
-        <input id="mcAmount" type="number" step="0.01" placeholder="Valor R$" style="flex:1;min-width:90px">
+        <input id="mcPlan" placeholder="Plano / descrição" style="flex:1;min-width:120px">
+        <input id="mcAmount" type="number" step="0.01" placeholder="Valor" style="flex:1;min-width:90px">
         <input id="mcDue" type="date" style="flex:1;min-width:130px">
-        <button class="btn sm" style="flex:0 0 auto" onclick="addCharge()">Adicionar</button>
+        <button class="btn" style="flex:0 0 auto" onclick="addCharge()">Adicionar</button>
       </div>
     </div>
     <table>
       <thead><tr><th>Cliente</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows.length ? rows.map(p => `
-        <tr>
-          <td>${esc(p.lead?.name || '—')}<div style="color:var(--muted);font-size:12px">${esc(p.lead?.phone || '')}</div></td>
-          <td>${esc(p.plan || '')}</td>
-          <td>${money(p.amount)}</td>
-          <td>${fmtDate(p.due_date)}</td>
+      <tbody>${rows.length ? rows.map(p => `<tr>
+          <td><b style="color:var(--ink)">${esc(p.lead?.name || '—')}</b><div style="color:var(--faint);font-size:12px">${esc(p.lead?.phone || '')}</div></td>
+          <td>${esc(p.plan || '')}</td><td>${money(p.amount)}</td><td>${fmtDate(p.due_date)}</td>
           <td><span class="pill ${p.status}">${p.status}</span></td>
-          <td style="text-align:right;white-space:nowrap">
-            ${p.status !== 'pago' ? `<button class="btn sm" style="background:#0a8a4a" onclick="payPix('${p.id}')">💠 Pix</button>
-            <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`}
-          </td>
-        </tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma cobrança ainda.</td></tr>'}
-      </tbody>
+          <td style="text-align:right;white-space:nowrap">${p.status !== 'pago' ? `<button class="btn sm" onclick="payPix('${p.id}')">Pix</button> <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`}</td>
+        </tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma cobrança ainda.</td></tr>'}</tbody>
     </table>`;
 }
 async function addCharge() {
-  const name = document.getElementById('mcName').value.trim();
-  const amount = document.getElementById('mcAmount').value;
+  const name = document.getElementById('mcName').value.trim(); const amount = document.getElementById('mcAmount').value;
   if (!name || !amount) { toast('Informe nome e valor.'); return; }
-  try {
-    await api('/payments/manual', { method: 'POST', body: JSON.stringify({
-      name, phone: document.getElementById('mcPhone').value,
-      plan: document.getElementById('mcPlan').value, amount,
-      due_date: document.getElementById('mcDue').value || undefined,
-    }) });
-    toast('Cobrança adicionada ✅'); finCobrancas();
-  } catch (e) { toast('Erro: ' + e.message); }
-}
-async function payMark(id, status) {
-  try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); finCobrancas(); }
+  try { await api('/payments/manual', { method: 'POST', body: JSON.stringify({ name, phone: document.getElementById('mcPhone').value, plan: document.getElementById('mcPlan').value, amount, due_date: document.getElementById('mcDue').value || undefined }) }); toast('Cobrança adicionada'); finCobrancas(); }
   catch (e) { toast('Erro: ' + e.message); }
 }
-async function payPix(id) {
-  toast('Gerando Pix...');
-  try { const r = await api('/payments/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) }); toast(r.whatsappSent ? 'Pix enviado no WhatsApp ✅' : 'Pix gerado (WhatsApp não enviado)'); }
-  catch (e) { toast('Erro: ' + e.message); }
-}
-
+async function payMark(id, status) { try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); finCobrancas(); } catch (e) { toast('Erro: ' + e.message); } }
+async function payPix(id) { toast('Gerando Pix...'); try { const r = await api('/payments/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) }); toast(r.whatsappSent ? 'Pix enviado no WhatsApp' : 'Pix gerado'); } catch (e) { toast('Erro: ' + e.message); } }
 async function finDespesas() {
-  const rows = await api('/expenses');
-  const total = rows.reduce((s, e) => s + Number(e.amount), 0);
+  const rows = await api('/expenses'); const total = rows.reduce((s, e) => s + Number(e.amount), 0);
   document.getElementById('finBody').innerHTML = `
-    <div class="stat" style="margin-bottom:16px">
-      <div class="lbl" style="margin-bottom:8px">➕ Adicionar despesa</div>
-      <div class="row" style="flex-wrap:wrap;gap:8px">
+    <div class="card-box" style="max-width:none">
+      <h4>Adicionar despesa</h4>
+      <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:12px">
         <input id="exDesc" placeholder="Descrição" style="flex:2;min-width:160px">
-        <input id="exCat" placeholder="Categoria (ex: painel, ads)" style="flex:1;min-width:120px">
-        <input id="exAmount" type="number" step="0.01" placeholder="Valor R$" style="flex:1;min-width:90px">
+        <input id="exCat" placeholder="Categoria (painel, ads...)" style="flex:1;min-width:120px">
+        <input id="exAmount" type="number" step="0.01" placeholder="Valor" style="flex:1;min-width:90px">
         <input id="exDate" type="date" style="flex:1;min-width:130px">
-        <button class="btn sm" style="flex:0 0 auto" onclick="addExpense()">Adicionar</button>
+        <button class="btn" style="flex:0 0 auto" onclick="addExpense()">Adicionar</button>
       </div>
     </div>
     <div class="section-h">Despesas — total ${money(total)}</div>
     <table>
       <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Data</th><th></th></tr></thead>
-      <tbody>${rows.length ? rows.map(e => `
-        <tr>
-          <td>${esc(e.description)}</td>
-          <td>${esc(e.category || '—')}</td>
-          <td>${money(e.amount)}</td>
-          <td>${fmtDate(e.date)}</td>
-          <td style="text-align:right"><button class="btn sm red" onclick="delExpense('${e.id}')">Excluir</button></td>
-        </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted)">Nenhuma despesa.</td></tr>'}
-      </tbody>
+      <tbody>${rows.length ? rows.map(e => `<tr><td>${esc(e.description)}</td><td>${esc(e.category || '—')}</td><td>${money(e.amount)}</td><td>${fmtDate(e.date)}</td><td style="text-align:right"><button class="btn sm red" onclick="delExpense('${e.id}')">Excluir</button></td></tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted)">Nenhuma despesa.</td></tr>'}</tbody>
     </table>`;
 }
 async function addExpense() {
-  const description = document.getElementById('exDesc').value.trim();
-  const amount = document.getElementById('exAmount').value;
+  const description = document.getElementById('exDesc').value.trim(); const amount = document.getElementById('exAmount').value;
   if (!description || !amount) { toast('Informe descrição e valor.'); return; }
-  try {
-    await api('/expenses', { method: 'POST', body: JSON.stringify({
-      description, category: document.getElementById('exCat').value,
-      amount, date: document.getElementById('exDate').value || undefined,
-    }) });
-    toast('Despesa adicionada ✅'); finDespesas();
-  } catch (e) { toast('Erro: ' + e.message); }
+  try { await api('/expenses', { method: 'POST', body: JSON.stringify({ description, category: document.getElementById('exCat').value, amount, date: document.getElementById('exDate').value || undefined }) }); toast('Despesa adicionada'); finDespesas(); }
+  catch (e) { toast('Erro: ' + e.message); }
 }
-async function delExpense(id) {
-  if (!confirm('Excluir despesa?')) return;
-  try { await api('/expenses/' + id, { method: 'DELETE' }); finDespesas(); } catch (e) { toast('Erro: ' + e.message); }
-}
-
+async function delExpense(id) { if (!confirm('Excluir despesa?')) return; try { await api('/expenses/' + id, { method: 'DELETE' }); finDespesas(); } catch (e) { toast('Erro: ' + e.message); } }
 async function finRelatorios() {
   const month = (window._repMonth || new Date().toISOString().slice(0, 7));
-  const r = await api('/payments/reports/monthly?month=' + month);
-  const cats = Object.entries(r.porCategoria || {});
+  const r = await api('/payments/reports/monthly?month=' + month); const cats = Object.entries(r.porCategoria || {});
   document.getElementById('finBody').innerHTML = `
-    <div class="row" style="align-items:center;gap:10px;margin-bottom:16px">
-      <label style="color:var(--muted);font-size:13px">Mês:</label>
-      <input type="month" value="${month}" onchange="window._repMonth=this.value;finRelatorios()" style="max-width:200px">
-    </div>
+    <div class="row" style="align-items:center;gap:10px;margin-bottom:18px"><label style="color:var(--muted);font-size:13px;flex:0 0 auto">Mês:</label><input type="month" value="${month}" onchange="window._repMonth=this.value;finRelatorios()" style="max-width:200px"></div>
     <div class="grid-stats">
-      <div class="stat"><div class="lbl">Receita (recebida)</div><div class="val green">${money(r.receita)}</div></div>
+      <div class="stat"><div class="lbl">Receita recebida</div><div class="val green">${money(r.receita)}</div></div>
       <div class="stat"><div class="lbl">Despesas</div><div class="val red">${money(r.despesas)}</div></div>
       <div class="stat"><div class="lbl">Sobra (lucro)</div><div class="val ${r.sobra >= 0 ? 'green' : 'red'}">${money(r.sobra)}</div></div>
     </div>
-    <div class="section-h" style="margin-top:8px">Despesas por categoria</div>
-    <table>
-      <thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
-      <tbody>${cats.length ? cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td>${money(v)}</td></tr>`).join('') : '<tr><td colspan="2" style="color:var(--muted)">Sem despesas no mês.</td></tr>'}</tbody>
-    </table>`;
+    <div class="section-h">Despesas por categoria</div>
+    <table><thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
+      <tbody>${cats.length ? cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td>${money(v)}</td></tr>`).join('') : '<tr><td colspan="2" style="color:var(--muted)">Sem despesas no mês.</td></tr>'}</tbody></table>`;
 }
 
-/* ===================== WHATSAPP ===================== */
-async function loadWa() {
-  const list = await api('/instances');
-  document.getElementById('wa').innerHTML = `
-    <div class="section-h">Instâncias WhatsApp (uazapi)</div>
-    <div style="max-width:680px">
-      ${list.map(i => `
-        <div class="inst">
-          <div>
-            <b>${esc(i.name)}</b> ${i.is_default ? '<span class="tag">padrão</span>' : ''}
-            <div style="color:var(--muted);font-size:12px">${i.phone ? esc(i.phone) + ' · ' : ''}<span class="pill ${i.status === 'connected' ? 'pago' : i.status === 'connecting' ? 'pendente' : 'atrasado'}">${i.status}</span></div>
-          </div>
-          <div class="row" style="flex:0 0 auto;gap:6px">
-            ${i.status !== 'connected' ? `<button class="btn sm" onclick="connectInst('${i.id}')">Conectar</button>` : `<button class="btn sm ghost" onclick="discInst('${i.id}')">Desconectar</button>`}
-            ${!i.is_default ? `<button class="btn sm ghost" onclick="defInst('${i.id}')">Tornar padrão</button>` : ''}
-            <button class="btn sm ghost" onclick="reWebhook('${i.id}')" title="Aponta o webhook para a URL pública (necessário para receber mensagens)">🔄 Webhook</button>
-            <button class="btn sm red" onclick="delInst('${i.id}')">Excluir</button>
-          </div>
-        </div>`).join('') || '<p style="color:var(--muted)">Nenhuma instância. Crie uma para conectar seu WhatsApp.</p>'}
-      <button class="btn" style="margin-top:12px" onclick="newInst()">+ Nova instância</button>
+/* ===================== CONFIGURAÇÕES ===================== */
+async function loadConfig() {
+  const [list, cfg] = await Promise.all([api('/instances'), api('/settings').catch(() => ({}))]);
+  const adminPhone = cfg.settings?.admin_phone?.phone || '';
+  document.getElementById('config').innerHTML = `
+    <div class="card-box">
+      <h4>WhatsApp</h4>
+      <div class="desc">Conecte o número que envia testes e cobranças aos clientes.</div>
+      ${list.map(i => instRow(i)).join('') || '<p style="color:var(--muted);font-size:13px">Nenhuma instância. Crie uma para conectar.</p>'}
+      <button class="btn" style="margin-top:8px" onclick="newInst()">Nova instância</button>
+    </div>
+    <div class="card-box">
+      <h4>Notificações de venda</h4>
+      <div class="desc">Número que recebe um aviso no WhatsApp a cada venda paga.</div>
+      <div class="row" style="max-width:440px"><input id="adminPhone" placeholder="WhatsApp admin (com DDD)" value="${esc(adminPhone)}"><button class="btn" style="flex:0 0 auto" onclick="saveAdminPhone()">Salvar</button></div>
     </div>`;
   refreshWaStatus();
 }
-async function newInst() {
-  const name = prompt('Nome da instância:', 'hyperflick');
-  if (!name) return;
-  toast('Criando instância...');
-  try { await api('/instances', { method: 'POST', body: JSON.stringify({ name }) }); loadWa(); }
+function instRow(i) {
+  const st = i.status === 'connected' ? 'pago' : i.status === 'connecting' ? 'pendente' : 'atrasado';
+  return `<div class="inst">
+      <div><b style="color:var(--ink)">${esc(i.name)}</b> ${i.is_default ? '<span class="tag">padrão</span>' : ''}
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">${i.phone ? esc(i.phone) + ' · ' : ''}<span class="pill ${st}">${i.status}</span></div></div>
+      <div class="row" style="flex:0 0 auto;gap:6px">
+        ${i.status !== 'connected' ? `<button class="btn sm" onclick="connectInst('${i.id}')">Conectar</button>` : `<button class="btn sm ghost" onclick="discInst('${i.id}')">Desconectar</button>`}
+        ${!i.is_default ? `<button class="btn sm ghost" onclick="defInst('${i.id}')">Padrão</button>` : ''}
+        <button class="btn sm ghost" onclick="reWebhook('${i.id}')" title="Aponta o webhook para a URL pública">Webhook</button>
+        <button class="btn sm red" onclick="delInst('${i.id}')">Excluir</button>
+      </div></div>`;
+}
+async function saveAdminPhone() {
+  const phone = document.getElementById('adminPhone').value.trim();
+  try { await api('/settings/admin_phone', { method: 'PUT', body: JSON.stringify({ value: { phone } }) }); toast('Número admin salvo'); }
   catch (e) { toast('Erro: ' + e.message); }
 }
+async function newInst() {
+  const name = prompt('Nome da instância:', 'hyperflick'); if (!name) return;
+  toast('Criando instância...');
+  try { await api('/instances', { method: 'POST', body: JSON.stringify({ name }) }); loadConfig(); } catch (e) { toast('Erro: ' + e.message); }
+}
 let qrPoll = null;
-async function connectInst(id) {
-  try {
-    const r = await api('/instances/' + id + '/connect', { method: 'POST', body: JSON.stringify({}) });
-    showQr(id, r.qrcode, r.paircode);
-  } catch (e) { toast('Erro: ' + e.message); }
-}
-function qrSrc(qr) {
-  if (!qr) return '';
-  if (typeof qr === 'object') qr = qr.base64 || '';
-  return qr.startsWith('data:') ? qr : 'data:image/png;base64,' + qr;
-}
+async function connectInst(id) { try { const r = await api('/instances/' + id + '/connect', { method: 'POST', body: JSON.stringify({}) }); showQr(id, r.qrcode, r.paircode); } catch (e) { toast('Erro: ' + e.message); } }
+function qrSrc(qr) { if (!qr) return ''; if (typeof qr === 'object') qr = qr.base64 || ''; return qr.startsWith('data:') ? qr : 'data:image/png;base64,' + qr; }
 function showQr(id, qr, paircode) {
   document.getElementById('modalRoot').innerHTML = `
     <div class="modal" onclick="if(event.target===this)closeModal()">
-      <div class="box">
-        <button class="x" onclick="closeModal()">×</button>
-        <h3 style="font-size:18px">Conectar WhatsApp</h3>
+      <div class="box"><button class="x" onclick="closeModal()">×</button>
+        <h3 style="font-size:18px;color:var(--ink)">Conectar WhatsApp</h3>
         <p style="color:var(--muted);font-size:13px;margin-top:6px">WhatsApp → Aparelhos conectados → Conectar aparelho</p>
-        <div class="qr">${qr ? `<img src="${qrSrc(qr)}">` : '<span style="color:#333">gerando QR...</span>'}</div>
+        <div class="qr">${qr ? `<img src="${qrSrc(qr)}">` : '<span style="color:#999">gerando QR...</span>'}</div>
         ${paircode ? `<p>ou use o código: <b style="font-size:18px;letter-spacing:2px">${esc(paircode)}</b></p>` : ''}
         <p id="qrState" style="color:var(--muted);font-size:13px;margin-top:8px">Aguardando leitura...</p>
-      </div>
-    </div>`;
+      </div></div>`;
   clearInterval(qrPoll);
   qrPoll = setInterval(async () => {
-    try {
-      const st = await api('/instances/' + id + '/status');
-      if (st.status === 'connected') { clearInterval(qrPoll); document.getElementById('qrState').innerHTML = '✅ Conectado!'; toast('WhatsApp conectado!'); setTimeout(() => { closeModal(); loadWa(); }, 1200); }
-    } catch (e) { }
+    try { const st = await api('/instances/' + id + '/status'); if (st.status === 'connected') { clearInterval(qrPoll); document.getElementById('qrState').innerHTML = 'Conectado!'; toast('WhatsApp conectado'); setTimeout(() => { closeModal(); loadConfig(); }, 1200); } } catch (e) { }
   }, 3000);
 }
 function closeModal() { clearInterval(qrPoll); document.getElementById('modalRoot').innerHTML = ''; }
-async function reWebhook(id) { try { const r = await api('/instances/' + id + '/webhook', { method: 'POST', body: JSON.stringify({}) }); toast('Webhook → ' + r.url); } catch (e) { toast('Erro: ' + e.message); } }
-async function discInst(id) { try { await api('/instances/' + id + '/disconnect', { method: 'POST', body: JSON.stringify({}) }); loadWa(); } catch (e) { toast(e.message); } }
-async function defInst(id) { try { await api('/instances/' + id + '/default', { method: 'POST', body: JSON.stringify({}) }); loadWa(); } catch (e) { toast(e.message); } }
-async function delInst(id) { if (!confirm('Excluir instância?')) return; try { await api('/instances/' + id, { method: 'DELETE' }); loadWa(); } catch (e) { toast(e.message); } }
+async function reWebhook(id) { try { const r = await api('/instances/' + id + '/webhook', { method: 'POST', body: JSON.stringify({}) }); toast('Webhook atualizado'); } catch (e) { toast('Erro: ' + e.message); } }
+async function discInst(id) { try { await api('/instances/' + id + '/disconnect', { method: 'POST', body: JSON.stringify({}) }); loadConfig(); } catch (e) { toast(e.message); } }
+async function defInst(id) { try { await api('/instances/' + id + '/default', { method: 'POST', body: JSON.stringify({}) }); loadConfig(); } catch (e) { toast(e.message); } }
+async function delInst(id) { if (!confirm('Excluir instância?')) return; try { await api('/instances/' + id, { method: 'DELETE' }); loadConfig(); } catch (e) { toast(e.message); } }
 
-/* ===================== WA STATUS BADGE ===================== */
 async function refreshWaStatus() {
   try {
-    const list = await api('/instances');
-    const on = list.find(i => i.status === 'connected');
-    const el = document.getElementById('waStatus');
-    el.innerHTML = on
-      ? `<span class="dot on"></span> WhatsApp: ${esc(on.phone || on.name)}`
-      : `<span class="dot off"></span> WhatsApp desconectado`;
+    const list = await api('/instances'); const on = list.find(i => i.status === 'connected');
+    document.getElementById('waStatus').innerHTML = on ? `<span class="dot on"></span> ${esc(on.phone || on.name)}` : `<span class="dot off"></span> WhatsApp desconectado`;
   } catch (e) { }
 }
 
 /* ===================== BOOT ===================== */
 function boot() { loadDash(); refreshWaStatus(); }
-(async function () {
-  await initSupa();
-  const token = await accessToken();
-  if (token) enterApp(); // sessão já ativa → entra direto
-})();
+(async function () { await initSupa(); const token = await accessToken(); if (token) enterApp(); })();
 </script>
 </body>
 </html>
