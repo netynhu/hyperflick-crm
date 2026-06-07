@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { config } from '../config.js';
-import { runFollowups } from '../lib/followup.js';
+import { runFollowups, runBilling } from '../lib/followup.js';
 
 const router = Router();
 
@@ -14,8 +14,9 @@ function authed(req) {
 router.all('/followup', async (req, res) => {
   if (!authed(req)) return res.status(401).json({ error: 'Não autorizado.' });
   try {
-    const r = await runFollowups();
-    res.json({ ok: true, ...r });
+    const followups = await runFollowups();
+    const billing = await runBilling();
+    res.json({ ok: true, followups, billing });
   } catch (e) {
     console.error('cron/followup', e.message);
     res.status(500).json({ error: e.message });

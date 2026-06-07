@@ -387,10 +387,56 @@ async function delLead(id) {
 }
 
 /* ===================== FINANCEIRO ===================== */
-async function loadFin() {
-  const rows = await api('/payments');
+let finSub = 'resumo';
+function loadFin() {
   document.getElementById('fin').innerHTML = `
-    <div class="section-h">Cobranças</div>
+    <div style="display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap">
+      <button class="btn sm ghost" data-fs="resumo" onclick="finTab('resumo')">📊 Resumo</button>
+      <button class="btn sm ghost" data-fs="cobrancas" onclick="finTab('cobrancas')">💳 Cobranças</button>
+      <button class="btn sm ghost" data-fs="despesas" onclick="finTab('despesas')">📉 Despesas</button>
+      <button class="btn sm ghost" data-fs="relatorios" onclick="finTab('relatorios')">📈 Relatórios</button>
+    </div>
+    <div id="finBody"></div>`;
+  finTab(finSub);
+}
+function finTab(t) {
+  finSub = t;
+  document.querySelectorAll('#fin [data-fs]').forEach(b => {
+    const on = b.dataset.fs === t;
+    b.style.background = on ? 'linear-gradient(135deg,var(--orange),var(--orange-deep))' : 'transparent';
+    b.style.color = on ? '#fff' : 'var(--muted)';
+  });
+  ({ resumo: finResumo, cobrancas: finCobrancas, despesas: finDespesas, relatorios: finRelatorios }[t])();
+}
+
+async function finResumo() {
+  const s = await api('/payments/summary/all');
+  const f = s.financeiro;
+  document.getElementById('finBody').innerHTML = `
+    <div class="grid-stats">
+      <div class="stat"><div class="lbl">Recebido</div><div class="val green">${money(f.recebido)}</div></div>
+      <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(f.pendente)}</div></div>
+      <div class="stat"><div class="lbl">Atrasado</div><div class="val red">${money(f.atrasado)}</div></div>
+      <div class="stat"><div class="lbl">Despesas</div><div class="val red">${money(f.despesas)}</div></div>
+      <div class="stat"><div class="lbl">Lucro (sobra)</div><div class="val ${f.lucro >= 0 ? 'green' : 'red'}">${money(f.lucro)}</div></div>
+      <div class="stat"><div class="lbl">MRR estimado</div><div class="val orange">${money(s.mrr)}</div></div>
+    </div>`;
+}
+
+async function finCobrancas() {
+  const rows = await api('/payments');
+  document.getElementById('finBody').innerHTML = `
+    <div class="stat" style="margin-bottom:16px">
+      <div class="lbl" style="margin-bottom:8px">➕ Adicionar cobrança / cliente</div>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <input id="mcName" placeholder="Nome do cliente" style="flex:2;min-width:140px">
+        <input id="mcPhone" placeholder="WhatsApp (DDD)" style="flex:1;min-width:120px">
+        <input id="mcPlan" placeholder="Plano/descrição" style="flex:1;min-width:120px">
+        <input id="mcAmount" type="number" step="0.01" placeholder="Valor R$" style="flex:1;min-width:90px">
+        <input id="mcDue" type="date" style="flex:1;min-width:130px">
+        <button class="btn sm" style="flex:0 0 auto" onclick="addCharge()">Adicionar</button>
+      </div>
+    </div>
     <table>
       <thead><tr><th>Cliente</th><th>Plano</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.length ? rows.map(p => `
@@ -400,16 +446,101 @@ async function loadFin() {
           <td>${money(p.amount)}</td>
           <td>${fmtDate(p.due_date)}</td>
           <td><span class="pill ${p.status}">${p.status}</span></td>
-          <td style="text-align:right">
-            ${p.status !== 'pago' ? `<button class="btn sm green" onclick="payMark('${p.id}','pago')">Marcar pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`}
+          <td style="text-align:right;white-space:nowrap">
+            ${p.status !== 'pago' ? `<button class="btn sm" style="background:#0a8a4a" onclick="payPix('${p.id}')">💠 Pix</button>
+            <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>` : `<button class="btn sm ghost" onclick="payMark('${p.id}','pendente')">Reabrir</button>`}
           </td>
-        </tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma cobrança ainda. Marque um lead como “Ganho” para gerar.</td></tr>'}
+        </tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted)">Nenhuma cobrança ainda.</td></tr>'}
       </tbody>
     </table>`;
 }
+async function addCharge() {
+  const name = document.getElementById('mcName').value.trim();
+  const amount = document.getElementById('mcAmount').value;
+  if (!name || !amount) { toast('Informe nome e valor.'); return; }
+  try {
+    await api('/payments/manual', { method: 'POST', body: JSON.stringify({
+      name, phone: document.getElementById('mcPhone').value,
+      plan: document.getElementById('mcPlan').value, amount,
+      due_date: document.getElementById('mcDue').value || undefined,
+    }) });
+    toast('Cobrança adicionada ✅'); finCobrancas();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
 async function payMark(id, status) {
-  try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); loadFin(); }
+  try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); finCobrancas(); }
   catch (e) { toast('Erro: ' + e.message); }
+}
+async function payPix(id) {
+  toast('Gerando Pix...');
+  try { const r = await api('/payments/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) }); toast(r.whatsappSent ? 'Pix enviado no WhatsApp ✅' : 'Pix gerado (WhatsApp não enviado)'); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+
+async function finDespesas() {
+  const rows = await api('/expenses');
+  const total = rows.reduce((s, e) => s + Number(e.amount), 0);
+  document.getElementById('finBody').innerHTML = `
+    <div class="stat" style="margin-bottom:16px">
+      <div class="lbl" style="margin-bottom:8px">➕ Adicionar despesa</div>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <input id="exDesc" placeholder="Descrição" style="flex:2;min-width:160px">
+        <input id="exCat" placeholder="Categoria (ex: painel, ads)" style="flex:1;min-width:120px">
+        <input id="exAmount" type="number" step="0.01" placeholder="Valor R$" style="flex:1;min-width:90px">
+        <input id="exDate" type="date" style="flex:1;min-width:130px">
+        <button class="btn sm" style="flex:0 0 auto" onclick="addExpense()">Adicionar</button>
+      </div>
+    </div>
+    <div class="section-h">Despesas — total ${money(total)}</div>
+    <table>
+      <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Data</th><th></th></tr></thead>
+      <tbody>${rows.length ? rows.map(e => `
+        <tr>
+          <td>${esc(e.description)}</td>
+          <td>${esc(e.category || '—')}</td>
+          <td>${money(e.amount)}</td>
+          <td>${fmtDate(e.date)}</td>
+          <td style="text-align:right"><button class="btn sm red" onclick="delExpense('${e.id}')">Excluir</button></td>
+        </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted)">Nenhuma despesa.</td></tr>'}
+      </tbody>
+    </table>`;
+}
+async function addExpense() {
+  const description = document.getElementById('exDesc').value.trim();
+  const amount = document.getElementById('exAmount').value;
+  if (!description || !amount) { toast('Informe descrição e valor.'); return; }
+  try {
+    await api('/expenses', { method: 'POST', body: JSON.stringify({
+      description, category: document.getElementById('exCat').value,
+      amount, date: document.getElementById('exDate').value || undefined,
+    }) });
+    toast('Despesa adicionada ✅'); finDespesas();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+async function delExpense(id) {
+  if (!confirm('Excluir despesa?')) return;
+  try { await api('/expenses/' + id, { method: 'DELETE' }); finDespesas(); } catch (e) { toast('Erro: ' + e.message); }
+}
+
+async function finRelatorios() {
+  const month = (window._repMonth || new Date().toISOString().slice(0, 7));
+  const r = await api('/payments/reports/monthly?month=' + month);
+  const cats = Object.entries(r.porCategoria || {});
+  document.getElementById('finBody').innerHTML = `
+    <div class="row" style="align-items:center;gap:10px;margin-bottom:16px">
+      <label style="color:var(--muted);font-size:13px">Mês:</label>
+      <input type="month" value="${month}" onchange="window._repMonth=this.value;finRelatorios()" style="max-width:200px">
+    </div>
+    <div class="grid-stats">
+      <div class="stat"><div class="lbl">Receita (recebida)</div><div class="val green">${money(r.receita)}</div></div>
+      <div class="stat"><div class="lbl">Despesas</div><div class="val red">${money(r.despesas)}</div></div>
+      <div class="stat"><div class="lbl">Sobra (lucro)</div><div class="val ${r.sobra >= 0 ? 'green' : 'red'}">${money(r.sobra)}</div></div>
+    </div>
+    <div class="section-h" style="margin-top:8px">Despesas por categoria</div>
+    <table>
+      <thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
+      <tbody>${cats.length ? cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td>${money(v)}</td></tr>`).join('') : '<tr><td colspan="2" style="color:var(--muted)">Sem despesas no mês.</td></tr>'}</tbody>
+    </table>`;
 }
 
 /* ===================== WHATSAPP ===================== */
@@ -427,6 +558,7 @@ async function loadWa() {
           <div class="row" style="flex:0 0 auto;gap:6px">
             ${i.status !== 'connected' ? `<button class="btn sm" onclick="connectInst('${i.id}')">Conectar</button>` : `<button class="btn sm ghost" onclick="discInst('${i.id}')">Desconectar</button>`}
             ${!i.is_default ? `<button class="btn sm ghost" onclick="defInst('${i.id}')">Tornar padrão</button>` : ''}
+            <button class="btn sm ghost" onclick="reWebhook('${i.id}')" title="Aponta o webhook para a URL pública (necessário para receber mensagens)">🔄 Webhook</button>
             <button class="btn sm red" onclick="delInst('${i.id}')">Excluir</button>
           </div>
         </div>`).join('') || '<p style="color:var(--muted)">Nenhuma instância. Crie uma para conectar seu WhatsApp.</p>'}
@@ -474,6 +606,7 @@ function showQr(id, qr, paircode) {
   }, 3000);
 }
 function closeModal() { clearInterval(qrPoll); document.getElementById('modalRoot').innerHTML = ''; }
+async function reWebhook(id) { try { const r = await api('/instances/' + id + '/webhook', { method: 'POST', body: JSON.stringify({}) }); toast('Webhook → ' + r.url); } catch (e) { toast('Erro: ' + e.message); } }
 async function discInst(id) { try { await api('/instances/' + id + '/disconnect', { method: 'POST', body: JSON.stringify({}) }); loadWa(); } catch (e) { toast(e.message); } }
 async function defInst(id) { try { await api('/instances/' + id + '/default', { method: 'POST', body: JSON.stringify({}) }); loadWa(); } catch (e) { toast(e.message); } }
 async function delInst(id) { if (!confirm('Excluir instância?')) return; try { await api('/instances/' + id, { method: 'DELETE' }); loadWa(); } catch (e) { toast(e.message); } }

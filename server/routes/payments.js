@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { requireAdmin } from '../middleware.js';
-import { planMonthly } from '../lib/helpers.js';
+import { config } from '../config.js';
+import { planMonthly, normalizePhone } from '../lib/helpers.js';
+import { createPixPayment } from '../lib/mercadopago.js';
+import { sendWhatsApp } from '../lib/service.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -36,6 +39,76 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Adiciona cliente + cobrança manualmente (nome, telefone, valor, vencimento)
+router.post('/manual', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    if (name.length < 2) return res.status(400).json({ error: 'Informe o nome do cliente.' });
+    const amount = Number(b.amount);
+    if (!amount) return res.status(400).json({ error: 'Informe o valor.' });
+    const phone = b.phone ? normalizePhone(b.phone) : null;
+
+    // reaproveita lead pelo telefone, senão cria
+    let lead = null;
+    if (phone) {
+      const { data: ex } = await sb().from('leads').select('*').eq('phone', phone).maybeSingle();
+      lead = ex;
+    }
+    if (!lead) {
+      const { data } = await sb().from('leads').insert({
+        name, phone: phone || `manual-${Date.now()}`, plan: b.plan || null,
+        stage: 'ganho', source: 'manual',
+      }).select().single();
+      lead = data;
+    } else {
+      await sb().from('leads').update({ name, stage: 'ganho', plan: b.plan || lead.plan }).eq('id', lead.id);
+    }
+
+    const { data: payment, error } = await sb().from('payments').insert({
+      lead_id: lead.id, plan: b.plan || null, amount, status: 'pendente', method: b.method || null,
+      due_date: b.due_date || new Date().toISOString().slice(0, 10), notes: b.notes || null,
+    }).select().single();
+    if (error) throw error;
+    res.json({ ok: true, lead_id: lead.id, payment });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Gera Pix (Mercado Pago) para ESTA cobrança e envia no WhatsApp do cliente
+router.post('/:id/pix', async (req, res) => {
+  try {
+    const { data: payment, error } = await sb().from('payments')
+      .select('*, lead:leads(id,name,phone,plan)').eq('id', req.params.id).single();
+    if (error) throw error;
+    const lead = payment.lead;
+    if (!lead) return res.status(400).json({ error: 'Cobrança sem cliente vinculado.' });
+
+    const pix = await createPixPayment({
+      amount: payment.amount,
+      description: `HyperFlick - ${payment.plan || 'Mensalidade'}`,
+      payerName: lead.name,
+      payerEmail: `c${lead.phone}@hyperflick.app`,
+      externalReference: lead.id,
+      notificationUrl: `${config.publicUrl}/api/webhook/mercadopago`,
+    });
+    await sb().from('payments').update({
+      method: 'pix', mp_payment_id: String(pix.id), pix_code: pix.pixCode,
+      pix_ticket_url: pix.ticketUrl, last_charged_at: new Date().toISOString(),
+    }).eq('id', payment.id);
+
+    const valor = Number(payment.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const nome = (lead.name || '').split(' ')[0];
+    const venc = payment.due_date ? new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+    const text = `${nome}, segue o Pix da sua mensalidade HyperFlick 🧡${venc ? ` (vencimento ${venc})` : ''}\n*Valor:* R$ ${valor}\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que cair, seu acesso continua ativo! 🚀`;
+    let whatsappSent = false;
+    try { await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text }); whatsappSent = true; } catch (e) { /* ignore */ }
+
+    res.json({ ok: true, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl, whatsappSent });
+  } catch (err) {
+    res.status(err.code === 'NO_MP' ? 400 : 500).json({ error: err.message });
+  }
+});
+
 // Marcar pago / atualizar
 router.patch('/:id', async (req, res) => {
   try {
@@ -62,8 +135,8 @@ router.get('/summary/all', async (_req, res) => {
   try {
     const { data: payments } = await sb().from('payments').select('amount,status');
     const { data: leads } = await sb().from('leads').select('stage,plan');
+    const { data: expenses } = await sb().from('expenses').select('amount');
 
-    const today = new Date().toISOString().slice(0, 10);
     const fin = { recebido: 0, pendente: 0, atrasado: 0, pagos: 0, emAberto: 0 };
     for (const p of payments || []) {
       const amt = Number(p.amount) || 0;
@@ -71,6 +144,9 @@ router.get('/summary/all', async (_req, res) => {
       else if (p.status === 'atrasado') { fin.atrasado += amt; fin.emAberto++; }
       else if (p.status === 'pendente') { fin.pendente += amt; fin.emAberto++; }
     }
+    const despesas = (expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    fin.despesas = Math.round(despesas * 100) / 100;
+    fin.lucro = Math.round((fin.recebido - despesas) * 100) / 100;
 
     const stages = { lead: 0, testando: 0, ganho: 0, perdido: 0, followup: 0 };
     let mrr = 0;
@@ -78,11 +154,46 @@ router.get('/summary/all', async (_req, res) => {
       if (stages[l.stage] !== undefined) stages[l.stage]++;
       if (l.stage === 'ganho') mrr += planMonthly(l.plan);
     }
-
     const totalLeads = (leads || []).length;
     const conversao = totalLeads ? (stages.ganho / totalLeads) * 100 : 0;
 
     res.json({ financeiro: fin, funil: stages, mrr: Math.round(mrr * 100) / 100, conversao: Math.round(conversao * 10) / 10, totalLeads });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Relatório de um período (mês). ?month=YYYY-MM  → receita, despesas, sobra
+router.get('/reports/monthly', async (req, res) => {
+  try {
+    const month = req.query.month || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const start = `${month}-01`;
+    const endD = new Date(start); endD.setMonth(endD.getMonth() + 1);
+    const end = endD.toISOString().slice(0, 10);
+
+    // receita = pagamentos PAGOS no mês (paid_at)
+    const { data: pays } = await sb().from('payments').select('amount,status,paid_at,plan')
+      .eq('status', 'pago').gte('paid_at', start).lt('paid_at', end);
+    const receita = (pays || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+    const { data: exps } = await sb().from('expenses').select('amount,category,description,date')
+      .gte('date', start).lt('date', end);
+    const despesas = (exps || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+    // despesas por categoria
+    const porCategoria = {};
+    for (const e of exps || []) {
+      const c = e.category || 'Outros';
+      porCategoria[c] = (porCategoria[c] || 0) + (Number(e.amount) || 0);
+    }
+
+    res.json({
+      month,
+      receita: Math.round(receita * 100) / 100,
+      despesas: Math.round(despesas * 100) / 100,
+      sobra: Math.round((receita - despesas) * 100) / 100,
+      qtdPagamentos: (pays || []).length,
+      qtdDespesas: (exps || []).length,
+      porCategoria,
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

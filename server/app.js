@@ -12,6 +12,7 @@ import payments from './routes/payments.js';
 import webhook from './routes/webhook.js';
 import settings from './routes/settings.js';
 import cron from './routes/cron.js';
+import expenses from './routes/expenses.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -26,6 +27,7 @@ app.use('/api/payments', payments);
 app.use('/api/webhook', webhook);
 app.use('/api/settings', settings);
 app.use('/api/cron', cron);
+app.use('/api/expenses', expenses);
 
 app.get('/api/health', (_req, res) =>
   res.json({ ok: true, warnings: configWarnings() })

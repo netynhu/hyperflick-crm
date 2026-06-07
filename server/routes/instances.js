@@ -58,6 +58,8 @@ router.post('/:id/connect', async (req, res) => {
     const qr = r.qrcode || r.qr || r.base64 || r?.instance?.qrcode || null;
     const paircode = r.paircode || r.pairingCode || r?.instance?.paircode || null;
     await sb().from('whatsapp_instances').update({ status: 'connecting' }).eq('id', inst.id);
+    // garante o webhook apontando para a URL pública atual
+    try { await uazapi.setWebhook(inst.token, `${config.publicUrl}/api/webhook/uazapi`); } catch (e) { /* opcional */ }
     res.json({ qrcode: qr, paircode });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -82,6 +84,16 @@ router.post('/:id/disconnect', async (req, res) => {
     await uazapi.disconnect(inst.token);
     await sb().from('whatsapp_instances').update({ status: 'disconnected' }).eq('id', inst.id);
     res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Re-registra o webhook com a PUBLIC_URL atual (corrige webhook em localhost)
+router.post('/:id/webhook', async (req, res) => {
+  try {
+    const { data: inst } = await sb().from('whatsapp_instances').select('*').eq('id', req.params.id).single();
+    const url = `${config.publicUrl}/api/webhook/uazapi`;
+    await uazapi.setWebhook(inst.token, url);
+    res.json({ ok: true, url });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

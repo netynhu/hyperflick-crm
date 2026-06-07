@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { hasSupabase } from '../supabase.js';
-import { normalizePhone } from '../lib/helpers.js';
+import { normalizePhone, planMonths } from '../lib/helpers.js';
 import { logMessage, sendWhatsApp } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
 import { deliverPixToLead } from '../lib/followup.js';
@@ -23,7 +23,8 @@ function parseInbound(body) {
     m.key?.remoteJid || m.remoteJid || body?.chatid || '';
   const phone = normalizePhone(String(rawJid).split('@')[0].split(':')[0]);
   const text =
-    m.text || m.body || m.content || m.caption ||
+    m.text || m.body || m.content?.text || m.caption ||
+    (typeof m.content === 'string' ? m.content : '') ||
     m.message?.conversation || m.message?.extendedTextMessage?.text || '';
   const name = m.senderName || m.pushName || m.notifyName || null;
   const messageId = m.id || m.messageid || m.key?.id || null;
@@ -76,9 +77,19 @@ router.post('/mercadopago', async (req, res) => {
     if (pay.status !== 'approved') return;
 
     const { data: payment } = await sb().from('payments').select('*').eq('mp_payment_id', String(id)).maybeSingle();
+    if (payment && payment.status === 'pago') return; // já processado (idempotente)
     const leadId = payment?.lead_id || pay.externalReference;
     if (payment) {
       await sb().from('payments').update({ status: 'pago', paid_at: new Date().toISOString() }).eq('id', payment.id);
+      // agenda a próxima cobrança (recorrência conforme o plano)
+      const months = planMonths(payment.plan) || 1;
+      const next = new Date((payment.due_date || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+      next.setMonth(next.getMonth() + months);
+      await sb().from('payments').insert({
+        lead_id: payment.lead_id, plan: payment.plan, amount: payment.amount,
+        status: 'pendente', due_date: next.toISOString().slice(0, 10),
+        period_start: new Date().toISOString().slice(0, 10), period_end: next.toISOString().slice(0, 10),
+      });
     }
     if (leadId) {
       await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);

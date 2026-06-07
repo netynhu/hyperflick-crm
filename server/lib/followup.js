@@ -32,6 +32,7 @@ export async function sendPixForLead(lead) {
     lead_id: lead.id, plan, amount, status: 'pendente', method: 'pix',
     due_date: new Date().toISOString().slice(0, 10),
     mp_payment_id: String(pix.id), pix_code: pix.pixCode, pix_ticket_url: pix.ticketUrl,
+    last_charged_at: new Date().toISOString(),
   }).select().single();
   if (error) console.error('sendPixForLead insert:', error.message, '(rodou o schema atualizado?)');
   return { plan, amount, pix, payment };
@@ -86,6 +87,44 @@ async function doPix(lead, kind, exp) {
   const text = pixMessage({ nome: (lead.name || '').split(' ')[0], plan, amount, pix, kind, exp });
   await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
   await markSent(lead.id, kind === 'expiring' ? 'expiring' : 'winback');
+}
+
+// Cobrança recorrente: para clientes GANHO com mensalidade vencida (não paga),
+// gera o Pix e envia no WhatsApp — no máximo 1x a cada 20h por cobrança.
+export async function runBilling() {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: pays } = await sb().from('payments')
+    .select('*, lead:leads(id,name,phone,plan,stage)')
+    .in('status', ['pendente', 'atrasado'])
+    .lte('due_date', today);
+
+  const actions = [];
+  for (const p of pays || []) {
+    if (!p.lead || p.lead.stage !== 'ganho') continue; // só clientes
+    if (p.last_charged_at && Date.now() - new Date(p.last_charged_at).getTime() < 20 * H) continue;
+    try {
+      const pix = await createPixPayment({
+        amount: p.amount,
+        description: `HyperFlick - ${p.plan || 'Mensalidade'}`,
+        payerName: p.lead.name,
+        payerEmail: `c${p.lead.phone}@hyperflick.app`,
+        externalReference: p.lead.id,
+        notificationUrl: `${config.publicUrl}/api/webhook/mercadopago`,
+      });
+      await sb().from('payments').update({
+        method: 'pix', mp_payment_id: String(pix.id), pix_code: pix.pixCode,
+        pix_ticket_url: pix.ticketUrl, last_charged_at: new Date().toISOString(),
+      }).eq('id', p.id);
+      const valor = Number(p.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+      const nome = (p.lead.name || '').split(' ')[0];
+      const text = `${nome}, sua mensalidade HyperFlick venceu 💠\n*Valor:* R$ ${valor}\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que cair, seu acesso continua ativo! 🧡`;
+      await sendWhatsApp({ leadId: p.lead.id, phone: p.lead.phone, text });
+      actions.push(`${p.id}:cobranca`);
+    } catch (e) {
+      actions.push(`${p.id}:erro:${e.message}`);
+    }
+  }
+  return { billed: actions.length, actions };
 }
 
 export async function runFollowups() {

@@ -78,10 +78,24 @@ create index if not exists payments_status_idx on payments (status);
 create index if not exists payments_due_idx on payments (due_date);
 
 -- Mercado Pago (Pix) — migração idempotente
-alter table payments add column if not exists mp_payment_id  text;
-alter table payments add column if not exists pix_code       text;  -- copia e cola
-alter table payments add column if not exists pix_ticket_url text;  -- link do Pix
+alter table payments add column if not exists mp_payment_id   text;
+alter table payments add column if not exists pix_code        text;  -- copia e cola
+alter table payments add column if not exists pix_ticket_url  text;  -- link do Pix
+alter table payments add column if not exists last_charged_at timestamptz; -- última cobrança Pix enviada
 create index if not exists payments_mp_idx on payments (mp_payment_id);
+
+-- ============================================================
+-- EXPENSES  (despesas — para o relatório de lucro)
+-- ============================================================
+create table if not exists expenses (
+  id          uuid primary key default gen_random_uuid(),
+  description text not null,
+  amount      numeric(10,2) not null default 0,
+  category    text,
+  date        date not null default current_date,
+  created_at  timestamptz default now()
+);
+create index if not exists expenses_date_idx on expenses (date);
 
 drop trigger if exists trg_payments_updated on payments;
 create trigger trg_payments_updated before update on payments
