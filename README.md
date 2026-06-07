@@ -68,6 +68,26 @@ npm start
 
 ---
 
+## 6. Deploy na Vercel
+
+O projeto já vem pronto pra Vercel (`vercel.json` + função serverless em `api/index.js`).
+
+1. Em [vercel.com](https://vercel.com) → **Add New → Project → Import** o repositório do GitHub.
+2. **Framework Preset:** *Other* (não precisa de build command).
+3. Em **Settings → Environment Variables**, adicione as mesmas variáveis do `.env`:
+   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_ANON_KEY`, `UAZAPI_URL`, `UAZAPI_ADMIN_TOKEN`,
+   `IPTV_PANEL_URL`, `TEST_DURATION_HOURS`, `PRICE_MENSAL`, `PRICE_SEMESTRAL`, `PRICE_ANUAL`, `CRM_ADMIN_KEY`.
+4. Clique em **Deploy**.
+5. **Importante:** depois do 1º deploy, copie o domínio gerado (ex: `https://hyperflick.vercel.app`),
+   coloque em `PUBLIC_URL` nas Environment Variables e faça **Redeploy**. Esse valor é usado no
+   webhook da uazapi (respostas dos clientes chegam no CRM).
+6. Reconecte a instância do WhatsApp no `/crm` (o webhook é registrado com a nova URL pública).
+
+> Tudo roda em função serverless (sem servidor persistente): banco no Supabase, WhatsApp via uazapi.
+> Os arquivos do funil/CRM (`public/`) são servidos pela própria função (`includeFiles` no `vercel.json`).
+
+---
+
 ## Fluxo de conversão
 
 ```
