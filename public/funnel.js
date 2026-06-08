@@ -237,7 +237,7 @@ function renderApp() {
     : '';
 
   const paidBox = !meta.free
-    ? `<div class="fallback paid"><b>⚠️ O ${flow.app} é um app pago (R$ 20)</b><span>Baixe/ative em <a href="${BUY_URL}" target="_blank" style="color:var(--orange-2)">ativeapp.com</a> — você tem 7 dias grátis pra testar. Os dados do teste funcionam normalmente nele.</span></div>`
+    ? `<div class="fallback paid"><b>ℹ️ Sobre o app ${flow.app}</b><span>Esse app é cobrado <b>pelo desenvolvedor do app</b> (R$ 20/ano, 1 dispositivo) e <b>não tem nenhuma relação com a mensalidade da HyperFlick</b> — ele é vinculado à sua TV.<br><br>🎁 <b>Fechando 6 meses ou 1 ano, o app é por nossa conta!</b> A gente ativa pra você em 1 dispositivo (licença anual). No plano mensal, a ativação fica por sua conta em <a href="${BUY_URL}" target="_blank" style="color:var(--orange-2)">ativeapp.com</a> (7 dias grátis pra testar).</span></div>`
     : `<div class="fallback"><b>✅ ${flow.app} é grátis</b><span>Disponível em: ${rule.store}.</span></div>`;
 
   const fb = rule.fallback ? `<div class="fallback"><b>Não encontrou na loja?</b><span>Procure por <b style="color:#fff">${rule.fallback}</b> — funciona em outras marcas.</span></div>` : '';
@@ -327,10 +327,14 @@ function renderPlans() {
   setStep(8);
   const banner = leadCaptured
     ? `<div class="okbanner">${lastTest && lastTest.whatsappSent ? '✅ Teste enviado no seu WhatsApp!' : '✅ Cadastro recebido — seu teste vai chegar no WhatsApp.'}</div>` : '';
+  const paidApp = flow.app && APP_META[flow.app] && APP_META[flow.app].free === false;
+  const appGift = paidApp
+    ? `<div class="fallback paid" style="margin-bottom:10px"><b>🎁 Plano 6 meses ou anual: o app ${flow.app} é grátis!</b><span>No semestral/anual a HyperFlick ativa o app pra você em 1 dispositivo. O app é vinculado à TV e não tem relação com o valor da mensalidade.</span></div>` : '';
   paint(`
     <div class="spark">💎</div>
     <h2>Garanta seu acesso <span class="y">completo</span></h2>
     ${banner}
+    ${appGift}
     <p class="hint">Quando o teste acabar, continue com o plano que preferir:</p>
     <div class="plans">
       ${PLANS.map(p => `

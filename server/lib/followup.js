@@ -128,6 +128,9 @@ export async function runBilling() {
     if (!p.lead || p.lead.stage !== 'ganho') continue; // só clientes
     // Cobra cada mensalidade automaticamente UMA única vez (atrasado inclusive).
     if (p.dunning_done) continue;
+    // Rede de segurança (caso a coluna dunning_done ainda não exista no banco):
+    // não reenvia a mesma cobrança em menos de 20h, evitando spam a cada cron.
+    if (p.last_charged_at && Date.now() - new Date(p.last_charged_at).getTime() < 20 * H) continue;
     // Sem WhatsApp válido: não dispara cobrança (será cobrada de outra forma).
     if (normalizePhone(p.lead.phone).length < 12) {
       await sb().from('payments').update({ dunning_done: true }).eq('id', p.id);
@@ -146,9 +149,10 @@ export async function runBilling() {
         buttons: [{ text: '💰 Quero pagar agora' }],
         footer: 'HyperFlick • IPTV',
       });
-      await sb().from('payments').update({
-        last_charged_at: new Date().toISOString(), dunning_done: true,
-      }).eq('id', p.id);
+      // last_charged_at primeiro (colunas sempre existentes) → garante a trava anti-spam;
+      // dunning_done à parte para não falhar caso a migração ainda não tenha rodado.
+      await sb().from('payments').update({ last_charged_at: new Date().toISOString() }).eq('id', p.id);
+      await sb().from('payments').update({ dunning_done: true }).eq('id', p.id);
       actions.push(`${p.id}:cobranca`);
     } catch (e) {
       actions.push(`${p.id}:erro:${e.message}`);

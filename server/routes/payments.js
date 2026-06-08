@@ -4,7 +4,7 @@ import { requireAdmin } from '../middleware.js';
 import { config } from '../config.js';
 import { planMonthly, normalizePhone } from '../lib/helpers.js';
 import { createPixPayment } from '../lib/mercadopago.js';
-import { sendWhatsApp, notifyAdmin, sendPixMessage } from '../lib/service.js';
+import { sendWhatsApp, notifyAdmin, sendPixMessage, addPaidAppExpenseIfNeeded } from '../lib/service.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -126,10 +126,12 @@ router.patch('/:id', async (req, res) => {
     if (error) throw error;
     // avisa o admin quando uma cobrança é marcada como paga manualmente
     if (upd.status === 'pago' && data.lead_id) {
-      const { data: lead } = await sb().from('leads').select('name,test_username').eq('id', data.lead_id).maybeSingle();
+      const { data: lead } = await sb().from('leads').select('name,test_username,app').eq('id', data.lead_id).maybeSingle();
       const valor = Number(data.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const usuario = lead?.test_username ? `\nUsuário: ${lead.test_username}` : '';
       await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead?.name || '-'}${usuario}\nPlano: ${data.plan || '-'}\nValor: R$ ${valor}`);
+      // 6 meses+ com app pago → lança o custo do app (R$ 20) nas despesas
+      if (lead) await addPaidAppExpenseIfNeeded({ lead, plan: data.plan });
     }
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }

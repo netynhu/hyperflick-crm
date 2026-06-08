@@ -4,7 +4,7 @@ import { sb } from '../supabase.js';
 import { uazapi } from '../uazapi.js';
 import { config } from '../config.js';
 import {
-  genTestCredentials, formatDateTimeBR, normalizePhone,
+  genTestCredentials, formatDateTimeBR, normalizePhone, planMonths,
 } from './helpers.js';
 import { generatePanelTest } from './panel.js';
 import { buildTestMessage } from './message.js';
@@ -93,6 +93,31 @@ export async function sendPixMessage({ leadId, phone, intro, plan, amount, pixCo
   const buttons = [{ text: '📋 Copiar código Pix', copy: pixCode }];
   if (ticketUrl) buttons.push({ text: '🔗 Pagar pelo link', url: ticketUrl });
   return sendWhatsAppRich({ leadId, phone, text, buttons, footer: footer || 'HyperFlick • IPTV' });
+}
+
+// Apps pagos (cobrados pelo desenvolvedor, à parte da mensalidade HyperFlick).
+export function isPaidApp(app) {
+  const a = String(app || '').toLowerCase();
+  return a.includes('ibo') || a.includes('assist');
+}
+
+// Quando o cliente fecha 6 meses (ou mais) E usa um app pago, a HyperFlick
+// presenteia o app (1 dispositivo, ~R$ 20/ano) → lança como despesa, uma vez.
+export async function addPaidAppExpenseIfNeeded({ lead, plan }) {
+  try {
+    if (!lead || !isPaidApp(lead.app)) return;
+    if (planMonths(plan) < 6) return; // só ganha o app a partir do semestral
+    // dedupe: já lançamos esse app pra esse cliente nos últimos 150 dias?
+    const since = new Date(Date.now() - 150 * 86400000).toISOString().slice(0, 10);
+    const { data: ex } = await sb().from('expenses').select('id')
+      .eq('category', 'app').gte('date', since).ilike('description', `%${lead.name}%`).limit(1);
+    if (ex && ex.length) return;
+    await sb().from('expenses').insert({
+      description: `App ${lead.app} (1 dispositivo) — ${lead.name}`,
+      amount: 20, category: 'app', status: 'pago',
+      date: new Date().toISOString().slice(0, 10),
+    });
+  } catch (e) { console.error('addPaidAppExpenseIfNeeded', e.message); }
 }
 
 export async function logMessage({ leadId, phone, direction, body, messageId = null, status = null }) {

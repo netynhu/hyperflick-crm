@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { hasSupabase } from '../supabase.js';
 import { normalizePhone, planMonths } from '../lib/helpers.js';
-import { logMessage, sendWhatsApp, notifyAdmin } from '../lib/service.js';
+import { logMessage, sendWhatsApp, notifyAdmin, addPaidAppExpenseIfNeeded } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
 import { deliverPixToLead, sendMonthlyPix } from '../lib/followup.js';
 
@@ -100,7 +100,11 @@ router.post('/mercadopago', async (req, res) => {
 
           if (payment) {
             const months = planMonths(payment.plan) || 1;
-            const next = new Date((payment.due_date || new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+            // Próximo vencimento NUNCA no passado: usa o maior entre hoje e o
+            // vencimento atual, + meses do plano (evita recobrar na hora ao quitar atraso).
+            const today = new Date().toISOString().slice(0, 10);
+            const base = (payment.due_date && payment.due_date > today) ? payment.due_date : today;
+            const next = new Date(base + 'T12:00:00');
             next.setMonth(next.getMonth() + months);
             await sb().from('payments').insert({
               lead_id: payment.lead_id, plan: payment.plan, amount: payment.amount,
@@ -110,8 +114,10 @@ router.post('/mercadopago', async (req, res) => {
           }
           if (leadId) {
             await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);
-            const { data: lead } = await sb().from('leads').select('name,phone,test_username').eq('id', leadId).maybeSingle();
+            const { data: lead } = await sb().from('leads').select('name,phone,test_username,app').eq('id', leadId).maybeSingle();
             if (lead) {
+              // 6 meses+ com app pago → lança o custo do app (R$ 20) nas despesas
+              await addPaidAppExpenseIfNeeded({ lead, plan: payment?.plan });
               const nome = (lead.name || '').split(' ')[0];
               try {
                 await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
