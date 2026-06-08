@@ -91,6 +91,37 @@ router.post('/', async (req, res) => {
 // ============================================================
 router.use(requireAdmin);
 
+const STAGES = ['lead', 'testando', 'ganho', 'perdido', 'followup'];
+
+// Criar lead manualmente pelo CRM — NÃO gera teste nem dispara WhatsApp.
+// POST /api/leads/manual  { name, phone, plan?, stage?, notes? }
+router.post('/manual', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    const phone = normalizePhone(b.phone);
+    if (name.length < 2) return res.status(400).json({ error: 'Nome inválido.' });
+    if (phone.length < 12) return res.status(400).json({ error: 'WhatsApp inválido (use DDD).' });
+
+    const { data: existing } = await sb().from('leads').select('id').eq('phone', phone).maybeSingle();
+    if (existing) return res.status(409).json({ error: 'Já existe um lead com esse WhatsApp.' });
+
+    const payload = {
+      name, phone,
+      plan: b.plan || null,
+      stage: STAGES.includes(b.stage) ? b.stage : 'lead',
+      notes: String(b.notes || '').trim() || null,
+      source: 'crm',
+    };
+    const { data, error } = await sb().from('leads').insert(payload).select().single();
+    if (error) throw error;
+    res.json({ ok: true, lead: data });
+  } catch (err) {
+    console.error('POST /api/leads/manual', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Lista (board). Opcional ?stage=
 router.get('/', async (req, res) => {
   try {
@@ -121,6 +152,15 @@ router.patch('/:id', async (req, res) => {
     const allow = ['stage', 'notes', 'lost_reason', 'plan', 'name'];
     const upd = {};
     for (const k of allow) if (k in req.body) upd[k] = req.body[k];
+    if ('name' in upd && String(upd.name || '').trim().length < 2) return res.status(400).json({ error: 'Nome inválido.' });
+    if ('phone' in req.body) {
+      const phone = normalizePhone(req.body.phone);
+      if (phone.length < 12) return res.status(400).json({ error: 'WhatsApp inválido (use DDD).' });
+      const { data: dup } = await sb().from('leads').select('id').eq('phone', phone).neq('id', req.params.id).maybeSingle();
+      if (dup) return res.status(409).json({ error: 'Já existe um lead com esse WhatsApp.' });
+      upd.phone = phone;
+    }
+    if (!Object.keys(upd).length) return res.status(400).json({ error: 'Nada para atualizar.' });
     const { data, error } = await sb().from('leads').update(upd).eq('id', req.params.id).select().single();
     if (error) throw error;
     res.json(data);

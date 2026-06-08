@@ -374,6 +374,9 @@ function renderBoard() {
     </div>`;
   }).join('')}</div>`;
   document.getElementById('kanban').innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+      <button class="btn" onclick="openAddLead()">+ Adicionar lead</button>
+    </div>
     <div class="gcards">
       <div class="gcard g-dark"><div class="lbl">Total do funil</div><div class="val">${money(totalAll)}</div><div class="sub">${LEADS.length} negócios</div></div>
       <div class="gcard g-purple"><div class="lbl">Em negociação</div><div class="val">${money(nego)}</div><div class="sub">Testando + follow-up</div></div>
@@ -420,6 +423,13 @@ async function openLead(id) {
           <span>Senha: <b>${esc(l.test_password)}</b></span>
           ${l.app ? `<span style="color:var(--muted);font-size:12px">App instalado: ${esc(l.app)}</span>` : ''}
         </div></div>` : ''}
+      <div class="field"><label>Nome e WhatsApp</label>
+        <input id="dName" value="${esc(l.name)}" placeholder="Nome" style="margin-bottom:8px">
+        <div class="row">
+          <input id="dPhone" value="${esc(l.phone)}" placeholder="WhatsApp com DDD" inputmode="numeric">
+          <button class="btn sm ghost" style="flex:0 0 auto" onclick="saveContact('${l.id}')">Salvar</button>
+        </div>
+      </div>
       <div class="field"><label>Etapa</label>
         <select id="dStage" onchange="changeStage('${l.id}',this.value)">
           ${STAGES.map(s => `<option value="${s.id}" ${s.id === l.stage ? 'selected' : ''}>${s.label}</option>`).join('')}
@@ -475,7 +485,50 @@ async function sendMsg(id) {
   catch (e) { toast('Erro: ' + e.message); input.value = text; }
 }
 async function saveNotes(id) { const notes = document.getElementById('dNotes').value; try { await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ notes }) }); toast('Nota salva'); } catch (e) { toast('Erro: ' + e.message); } }
+async function saveContact(id) {
+  const name = document.getElementById('dName').value.trim();
+  const phone = document.getElementById('dPhone').value.trim();
+  if (name.length < 2) { toast('Informe o nome.'); return; }
+  if (phone.replace(/\D/g, '').length < 10) { toast('Informe o WhatsApp com DDD.'); return; }
+  try { await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ name, phone }) }); toast('Dados atualizados'); openLead(id); loadKanban(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
 async function delLead(id) { if (!confirm('Excluir este lead?')) return; try { await api('/leads/' + id, { method: 'DELETE' }); toast('Lead excluído'); closeDrawer(); loadKanban(); } catch (e) { toast('Erro: ' + e.message); } }
+
+/* ----- Adicionar lead manualmente ----- */
+function openAddLead() {
+  document.getElementById('modalRoot').innerHTML = `
+   <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box" style="text-align:left">
+      <button class="x" onclick="closeModal()">×</button>
+      <h3 style="font-size:18px;font-weight:800">Adicionar lead</h3>
+      <div class="sub" style="color:var(--muted);font-size:12.5px;margin-top:3px">Cadastro manual — não gera teste nem envia WhatsApp.</div>
+      <div class="field"><label>Nome</label><input id="alName" placeholder="Nome do cliente"></div>
+      <div class="field"><label>WhatsApp (com DDD)</label><input id="alPhone" placeholder="11999998888" inputmode="numeric"></div>
+      <div class="row">
+        <div class="field" style="flex:1"><label>Plano</label>
+          <select id="alPlan"><option value="">Sem plano</option><option value="mensal">Mensal</option><option value="semestral">Semestral</option><option value="anual">Anual</option></select>
+        </div>
+        <div class="field" style="flex:1"><label>Etapa</label>
+          <select id="alStage">${STAGES.map(s => `<option value="${s.id}">${s.label}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field"><label>Anotações (opcional)</label><textarea id="alNotes" rows="2" placeholder="Observações internas..."></textarea></div>
+      <button class="btn" id="alSave" style="width:100%;margin-top:6px" onclick="saveNewLead()">Adicionar lead</button>
+    </div>
+   </div>`;
+  setTimeout(() => document.getElementById('alName')?.focus(), 50);
+}
+async function saveNewLead() {
+  const name = document.getElementById('alName').value.trim();
+  const phone = document.getElementById('alPhone').value.trim();
+  if (name.length < 2) { toast('Informe o nome.'); return; }
+  if (phone.replace(/\D/g, '').length < 10) { toast('Informe o WhatsApp com DDD.'); return; }
+  const payload = { name, phone, plan: document.getElementById('alPlan').value || null, stage: document.getElementById('alStage').value, notes: document.getElementById('alNotes').value.trim() };
+  const btn = document.getElementById('alSave'); btn.disabled = true; btn.textContent = 'Adicionando...';
+  try { await api('/leads/manual', { method: 'POST', body: JSON.stringify(payload) }); toast('Lead adicionado'); closeModal(); loadKanban(); }
+  catch (e) { toast('Erro: ' + e.message); btn.disabled = false; btn.textContent = 'Adicionar lead'; }
+}
 
 /* ===================== MENSAGENS (disparo manual) ===================== */
 let MSG = { image: '', buttons: [], target: 'numero', stageCounts: {} };
