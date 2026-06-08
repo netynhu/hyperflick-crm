@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { requireAdmin } from '../middleware.js';
 import { config } from '../config.js';
-import { planMonthly, normalizePhone } from '../lib/helpers.js';
+import { planMonthly, normalizePhone, planMonths } from '../lib/helpers.js';
 import { createPixPayment } from '../lib/mercadopago.js';
 import { sendWhatsApp, notifyAdmin, sendPixMessage, addPaidAppExpenseIfNeeded } from '../lib/service.js';
 
@@ -122,16 +122,45 @@ router.patch('/:id', async (req, res) => {
     const upd = {};
     for (const k of allow) if (k in req.body) upd[k] = req.body[k];
     if (upd.status === 'pago' && !upd.paid_at) upd.paid_at = new Date().toISOString();
+
+    // status anterior, para só agir quando a cobrança REALMENTE passa para "pago"
+    const { data: before } = await sb().from('payments').select('status').eq('id', req.params.id).maybeSingle();
+    const wasPaid = before?.status === 'pago';
+
     const { data, error } = await sb().from('payments').update(upd).eq('id', req.params.id).select().single();
     if (error) throw error;
-    // avisa o admin quando uma cobrança é marcada como paga manualmente
-    if (upd.status === 'pago' && data.lead_id) {
-      const { data: lead } = await sb().from('leads').select('name,test_username,app').eq('id', data.lead_id).maybeSingle();
-      const valor = Number(data.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      const usuario = lead?.test_username ? `\nUsuário: ${lead.test_username}` : '';
-      await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead?.name || '-'}${usuario}\nPlano: ${data.plan || '-'}\nValor: R$ ${valor}`);
-      // 6 meses+ com app pago → lança o custo do app (R$ 20) nas despesas
-      if (lead) await addPaidAppExpenseIfNeeded({ lead, plan: data.plan });
+
+    const becamePaid = data.status === 'pago' && !wasPaid;
+    if (becamePaid) {
+      const today = new Date().toISOString().slice(0, 10);
+      // evita duplicar a recorrência: só cria a próxima se ainda não houver uma
+      // cobrança em aberto com vencimento futuro para este cliente.
+      let hasFuture = false;
+      if (data.lead_id) {
+        const { data: fut } = await sb().from('payments').select('id')
+          .eq('lead_id', data.lead_id).eq('status', 'pendente').gt('due_date', today).limit(1);
+        hasFuture = Array.isArray(fut) && fut.length > 0;
+      }
+      if (!hasFuture) {
+        const months = planMonths(data.plan) || 1;
+        const base = (data.due_date && data.due_date > today) ? data.due_date : today;
+        const next = new Date(base + 'T12:00:00');
+        next.setMonth(next.getMonth() + months);
+        await sb().from('payments').insert({
+          lead_id: data.lead_id, plan: data.plan, amount: data.amount,
+          status: 'pendente', due_date: next.toISOString().slice(0, 10),
+          period_start: today, period_end: next.toISOString().slice(0, 10),
+        });
+      }
+
+      if (data.lead_id) {
+        const { data: lead } = await sb().from('leads').select('name,test_username,app').eq('id', data.lead_id).maybeSingle();
+        const valor = Number(data.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        const usuario = lead?.test_username ? `\nUsuário: ${lead.test_username}` : '';
+        await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead?.name || '-'}${usuario}\nPlano: ${data.plan || '-'}\nValor: R$ ${valor}`);
+        // 6 meses+ com app pago → lança o custo do app (R$ 20) nas despesas
+        if (lead) await addPaidAppExpenseIfNeeded({ lead, plan: data.plan });
+      }
     }
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
