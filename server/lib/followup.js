@@ -173,23 +173,26 @@ export async function runFollowups() {
   const sentMap = {};
   for (const f of fus || []) (sentMap[f.lead_id] ||= new Set()).add(f.type);
 
+  const F = config.followup;
   const actions = [];
   for (const l of leads) {
     const sent = sentMap[l.id] || new Set();
     const exp = new Date(l.test_expires_at).getTime();
+    // Âncora da régua = quando o teste foi criado (fallback: expira − duração).
     const created = l.test_created_at ? new Date(l.test_created_at).getTime() : exp - config.test.durationHours * H;
     try {
-      if (now < exp) {
-        if (!sent.has('expiring') && now >= exp - 70 * 60 * 1000) {
-          await doPix(l, 'expiring', exp); actions.push(`${l.id}:expiring`);
-        } else if (!sent.has('welcome') && now >= created + H && now < exp - 70 * 60 * 1000) {
-          await doWelcome(l); actions.push(`${l.id}:welcome`);
-        }
-      } else {
-        if (l.stage === 'testando') await sb().from('leads').update({ stage: 'followup' }).eq('id', l.id);
-        if (!sent.has('winback') && now >= exp + 18 * H && now <= exp + 48 * H) {
-          await doPix(l, 'winback', exp); actions.push(`${l.id}:winback`);
-        }
+      // teste expirou → move pra "followup" (sai da coluna "testando")
+      if (now >= exp && l.stage === 'testando') {
+        await sb().from('leads').update({ stage: 'followup' }).eq('id', l.id);
+      }
+      // Cadência FIXA por tempo desde a criação do teste — 1 envio por execução,
+      // na ordem welcome → oferta(Pix) → winback(Pix).
+      if (!sent.has('welcome') && now >= created + F.welcomeHours * H) {
+        await doWelcome(l); actions.push(`${l.id}:welcome`);
+      } else if (!sent.has('expiring') && now >= created + F.pixHours * H) {
+        await doPix(l, 'expiring', exp); actions.push(`${l.id}:expiring`);
+      } else if (!sent.has('winback') && now >= created + F.winbackHours * H && now >= exp) {
+        await doPix(l, 'winback', exp); actions.push(`${l.id}:winback`);
       }
     } catch (e) {
       actions.push(`${l.id}:erro:${e.message}`);
