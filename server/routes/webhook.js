@@ -4,7 +4,7 @@ import { hasSupabase } from '../supabase.js';
 import { normalizePhone, planMonths } from '../lib/helpers.js';
 import { logMessage, sendWhatsApp, notifyAdmin } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
-import { deliverPixToLead } from '../lib/followup.js';
+import { deliverPixToLead, sendMonthlyPix } from '../lib/followup.js';
 
 const router = Router();
 
@@ -49,13 +49,18 @@ router.post('/uazapi', async (req, res) => {
         }
         await logMessage({ leadId: lead?.id, phone, direction: 'in', body: text, messageId });
 
-        // Gatilho de compra: cliente demonstrou intenção → dispara o Pix
+        // Gatilho de compra: cliente demonstrou intenção (ou clicou "Quero pagar agora")
         if (lead && isBuyIntent(text)) {
           try {
-            const nome = (lead.name || '').split(' ')[0];
-            await deliverPixToLead(lead, `${nome}, show! 🧡 Bora liberar seu acesso completo da HyperFlick. Aqui está seu Pix:`);
-            if (lead.stage === 'lead' || lead.stage === 'testando') {
-              await sb().from('leads').update({ stage: 'followup' }).eq('id', lead.id);
+            if (lead.stage === 'ganho') {
+              // cliente existente: clicou no botão da cobrança mensal → manda o Pix da cobrança em aberto
+              await sendMonthlyPix(lead);
+            } else {
+              const nome = (lead.name || '').split(' ')[0];
+              await deliverPixToLead(lead, `${nome}, show! 🧡 Bora liberar seu acesso completo da HyperFlick. Aqui está seu Pix:`);
+              if (lead.stage === 'lead' || lead.stage === 'testando') {
+                await sb().from('leads').update({ stage: 'followup' }).eq('id', lead.id);
+              }
             }
           } catch (e) { console.error('buy-intent pix', e.message); }
         }

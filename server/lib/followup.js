@@ -5,7 +5,7 @@ import { sb } from '../supabase.js';
 import { config } from '../config.js';
 import { planPrice, normalizePhone } from './helpers.js';
 import { createPixPayment } from './mercadopago.js';
-import { sendWhatsApp } from './service.js';
+import { sendWhatsApp, sendWhatsAppRich, sendPixMessage } from './service.js';
 
 const H = 3600 * 1000;
 
@@ -54,20 +54,45 @@ export async function deliverPixToLead(lead, intro) {
     ({ plan, amount, pix } = await sendPixForLead(lead));
   }
 
-  const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const nome = (lead.name || '').split(' ')[0];
-  const head = intro || `${nome}, perfeito! Aqui está o Pix do seu *Plano ${plan}* (R$ ${valor}):`;
-  const text = `${head}\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que o Pix cair, seu acesso é *liberado na hora*! 🚀`;
-  await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+  const head = intro || `${nome}, perfeito! Aqui está o Pix pra liberar seu acesso 🧡`;
+  await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro: head, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
   return { plan, amount, pix };
 }
 
-function pixMessage({ nome, plan, amount, pix, kind, exp }) {
+// Cliente GANHO clicou "Quero pagar agora" na cobrança mensal → gera o Pix da
+// cobrança em aberto e envia com botões (copiar código + link).
+export async function sendMonthlyPix(lead) {
+  const { data: pay } = await sb().from('payments').select('*')
+    .eq('lead_id', lead.id).in('status', ['pendente', 'atrasado'])
+    .order('due_date', { ascending: true }).limit(1).maybeSingle();
+  const nome = (lead.name || '').split(' ')[0];
+  if (!pay) return deliverPixToLead(lead, `${nome}, aqui está seu Pix:`);
+  const pix = await createPixPayment({
+    amount: pay.amount,
+    description: `HyperFlick - ${pay.plan || 'Mensalidade'}`,
+    payerName: lead.name,
+    payerEmail: `c${lead.phone}@hyperflick.app`,
+    externalReference: lead.id,
+    notificationUrl: `${config.publicUrl}/api/webhook/mercadopago`,
+  });
+  await sb().from('payments').update({
+    method: 'pix', mp_payment_id: String(pix.id), pix_code: pix.pixCode,
+    pix_ticket_url: pix.ticketUrl, last_charged_at: new Date().toISOString(),
+  }).eq('id', pay.id);
+  await sendPixMessage({
+    leadId: lead.id, phone: lead.phone,
+    intro: `Perfeito, ${nome}! Aqui está o Pix da sua mensalidade HyperFlick 🧡`,
+    plan: pay.plan, amount: pay.amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl,
+  });
+  return { ok: true };
+}
+
+function pixHead({ nome, plan, amount, kind, exp }) {
   const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-  const head = kind === 'expiring'
+  return kind === 'expiring'
     ? `${nome}, seu teste da HyperFlick *acaba às ${brTime(exp)}* ⏳\n\nPra não perder o acesso a +800 canais e +60 mil filmes e séries, garanta já seu *Plano ${plan}* por *R$ ${valor}*:`
     : `${nome}, seu teste expirou — mas dá tempo de continuar aproveitando! 🧡\n\nReative agora seu *Plano ${plan}* por *R$ ${valor}*:`;
-  return `${head}\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que o Pix cair, seu acesso é *liberado na hora*! 🚀`;
 }
 
 async function markSent(leadId, type) {
@@ -84,8 +109,8 @@ async function doWelcome(lead) {
 
 async function doPix(lead, kind, exp) {
   const { plan, amount, pix } = await sendPixForLead(lead);
-  const text = pixMessage({ nome: (lead.name || '').split(' ')[0], plan, amount, pix, kind, exp });
-  await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+  const intro = pixHead({ nome: (lead.name || '').split(' ')[0], plan, amount, kind, exp });
+  await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
   await markSent(lead.id, kind === 'expiring' ? 'expiring' : 'winback');
 }
 
@@ -110,23 +135,20 @@ export async function runBilling() {
       continue;
     }
     try {
-      const pix = await createPixPayment({
-        amount: p.amount,
-        description: `HyperFlick - ${p.plan || 'Mensalidade'}`,
-        payerName: p.lead.name,
-        payerEmail: `c${p.lead.phone}@hyperflick.app`,
-        externalReference: p.lead.id,
-        notificationUrl: `${config.publicUrl}/api/webhook/mercadopago`,
-      });
-      await sb().from('payments').update({
-        method: 'pix', mp_payment_id: String(pix.id), pix_code: pix.pixCode,
-        pix_ticket_url: pix.ticketUrl, last_charged_at: new Date().toISOString(),
-        dunning_done: true,
-      }).eq('id', p.id);
+      // 1º passo (#12): avisa o vencimento e oferece o botão "Quero pagar agora".
+      // O Pix só é gerado quando o cliente clicar (tratado no webhook → sendMonthlyPix).
       const valor = Number(p.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
       const nome = (p.lead.name || '').split(' ')[0];
-      const text = `${nome}, sua mensalidade HyperFlick venceu 💠\n*Valor:* R$ ${valor}\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que cair, seu acesso continua ativo! 🧡`;
-      await sendWhatsApp({ leadId: p.lead.id, phone: p.lead.phone, text });
+      const venc = p.due_date ? new Date(p.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+      await sendWhatsAppRich({
+        leadId: p.lead.id, phone: p.lead.phone,
+        text: `${nome}, sua mensalidade HyperFlick está disponível 💳\n\n💠 *Plano:* ${p.plan || 'Mensal'}\n📅 *Vencimento:* ${venc}\n💰 *Valor:* R$ ${valor}\n\nÉ rapidinho — toque no botão abaixo pra receber seu Pix 👇`,
+        buttons: [{ text: '💰 Quero pagar agora' }],
+        footer: 'HyperFlick • IPTV',
+      });
+      await sb().from('payments').update({
+        last_charged_at: new Date().toISOString(), dunning_done: true,
+      }).eq('id', p.id);
       actions.push(`${p.id}:cobranca`);
     } catch (e) {
       actions.push(`${p.id}:erro:${e.message}`);

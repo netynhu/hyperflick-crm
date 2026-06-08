@@ -4,7 +4,7 @@ import { requireAdmin } from '../middleware.js';
 import { config } from '../config.js';
 import { planMonthly, normalizePhone } from '../lib/helpers.js';
 import { createPixPayment } from '../lib/mercadopago.js';
-import { sendWhatsApp, notifyAdmin } from '../lib/service.js';
+import { sendWhatsApp, notifyAdmin, sendPixMessage } from '../lib/service.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -101,12 +101,13 @@ router.post('/:id/pix', async (req, res) => {
       pix_ticket_url: pix.ticketUrl, last_charged_at: new Date().toISOString(),
     }).eq('id', payment.id);
 
-    const valor = Number(payment.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const nome = (lead.name || '').split(' ')[0];
     const venc = payment.due_date ? new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '';
-    const text = `${nome}, segue o Pix da sua mensalidade HyperFlick 🧡${venc ? ` (vencimento ${venc})` : ''}\n*Valor:* R$ ${valor}\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que cair, seu acesso continua ativo! 🚀`;
     let whatsappSent = false;
-    try { await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text }); whatsappSent = true; } catch (e) { /* ignore */ }
+    try {
+      await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro: `${nome}, segue o Pix da sua mensalidade HyperFlick 🧡${venc ? ` (vencimento ${venc})` : ''}`, plan: payment.plan, amount: payment.amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
+      whatsappSent = true;
+    } catch (e) { /* ignore */ }
 
     res.json({ ok: true, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl, whatsappSent });
   } catch (err) {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { requireAdmin } from '../middleware.js';
 import { normalizePhone, planPrice, planMonths } from '../lib/helpers.js';
-import { generateTestForLead, sendWhatsApp } from '../lib/service.js';
+import { generateTestForLead, sendWhatsApp, sendPixMessage } from '../lib/service.js';
 import { sendPixForLead, deliverPixToLead } from '../lib/followup.js';
 
 const router = Router();
@@ -170,10 +170,8 @@ router.post('/:id/pix', async (req, res) => {
     const { data: lead, error } = await sb().from('leads').select('*').eq('id', req.params.id).single();
     if (error) throw error;
     const { plan, amount, pix } = await sendPixForLead(lead);
-    const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const nome = (lead.name || '').split(' ')[0];
-    const text = `${nome}, aqui está o Pix do seu *Plano ${plan}* (R$ ${valor}) na HyperFlick 🧡\n\n💠 *Pix copia e cola:*\n${pix.pixCode}\n\n🔗 Ou pague pelo link:\n${pix.ticketUrl}\n\nAssim que cair, seu acesso é liberado na hora! 🚀`;
-    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+    await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro: `${nome}, aqui está o Pix do seu acesso completo na HyperFlick 🧡`, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
     res.json({ ok: true, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
   } catch (e) {
     const code = e.code === 'NO_MP' ? 400 : (e.code === 'NO_INSTANCE' ? 409 : 500);
