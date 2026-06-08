@@ -39,18 +39,14 @@ router.post('/uazapi', async (req, res) => {
     if (hasSupabase()) {
       const { fromMe, phone, text, name, messageId } = parseInbound(req.body);
       if (!fromMe && phone) {
-        // encontra o lead; se não existir, cria como novo lead vindo do WhatsApp
-        let { data: lead } = await sb().from('leads').select('id,stage,name,phone,plan').eq('phone', phone).maybeSingle();
-        if (!lead) {
-          const { data } = await sb().from('leads').insert({
-            name: name || `Contato ${phone.slice(-4)}`, phone, stage: 'lead', source: 'whatsapp',
-          }).select('id,stage,name,phone,plan').single();
-          lead = data;
-        }
-        await logMessage({ leadId: lead?.id, phone, direction: 'in', body: text, messageId });
+        // Só processa mensagens de quem JÁ é lead (veio do quiz/funil ou de um disparo).
+        // Conversas avulsas do WhatsApp (número desconhecido) NÃO entram no CRM.
+        const { data: lead } = await sb().from('leads').select('id,stage,name,phone,plan').eq('phone', phone).maybeSingle();
+        if (lead) {
+          await logMessage({ leadId: lead.id, phone, direction: 'in', body: text, messageId });
 
-        // Gatilho de compra: cliente demonstrou intenção (ou clicou "Quero pagar agora")
-        if (lead && isBuyIntent(text)) {
+          // Gatilho de compra: cliente demonstrou intenção (ou clicou "Quero pagar agora")
+          if (isBuyIntent(text)) {
           try {
             if (lead.stage === 'ganho') {
               // cliente existente: clicou no botão da cobrança mensal → manda o Pix da cobrança em aberto
@@ -63,6 +59,7 @@ router.post('/uazapi', async (req, res) => {
               }
             }
           } catch (e) { console.error('buy-intent pix', e.message); }
+          }
         }
       }
     }
