@@ -82,17 +82,14 @@ export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', b
   return { ok: true };
 }
 
-// Envia uma mensagem de pagamento Pix com botões (copiar código + pagar pelo link).
-// O código Pix e o link também vão no corpo da mensagem (segurança: o código Pix é
-// longo e o botão "copiar" do WhatsApp pode truncar — assim o cliente sempre consegue pagar).
+// Envia uma mensagem de pagamento Pix. O código Pix e o link ficam SOMENTE nos
+// botões (copiar código + pagar pelo link) — nada no corpo, a pedido.
 export async function sendPixMessage({ leadId, phone, intro, plan, amount, pixCode, ticketUrl, footer }) {
   const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const planLine = plan ? `\n\n💠 *Plano ${plan}* — R$ ${valor}` : `\n\n💠 *Valor:* R$ ${valor}`;
   const text =
     `${intro}${planLine}\n\n` +
-    `Toque em *📋 Copiar código Pix*, abra o app do seu banco e cole no Pix. Assim que o pagamento cair, seu acesso é liberado na hora! 🚀\n\n` +
-    `*Pix copia e cola:*\n${pixCode}` +
-    (ticketUrl ? `\n\n🔗 Ou pague pelo link:\n${ticketUrl}` : '');
+    `Toque em *📋 Copiar código Pix*, abra o app do seu banco e cole no Pix. Assim que o pagamento cair, seu acesso é liberado na hora! 🚀`;
   const buttons = [{ text: '📋 Copiar código Pix', copy: pixCode }];
   if (ticketUrl) buttons.push({ text: '🔗 Pagar pelo link', url: ticketUrl });
   return sendWhatsAppRich({ leadId, phone, text, buttons, footer: footer || 'HyperFlick • IPTV' });
