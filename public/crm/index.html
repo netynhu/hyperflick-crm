@@ -176,6 +176,26 @@
   .img-thumb{width:54px;height:54px;border-radius:9px;object-fit:cover;border:1px solid var(--border)}
   .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
 
+  /* financeiro: gráfico de barras + listas rápidas */
+  .fchart{display:flex;align-items:flex-end;gap:16px;height:200px;padding:12px 6px 0}
+  .fchart .grp{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+  .fchart .bars{display:flex;align-items:flex-end;gap:5px;height:148px}
+  .fchart .bar{width:20px;border-radius:6px 6px 2px 2px;min-height:3px;transition:height .3s}
+  .fchart .bar.rec{background:linear-gradient(180deg,#22b573,#0f9d58)}
+  .fchart .bar.desp{background:linear-gradient(180deg,#f4686d,#e23b40)}
+  .fchart .ml{font-size:11.5px;color:var(--muted);font-weight:700}
+  .fchart .lu{font-size:11px;font-weight:700}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--muted);font-weight:600;margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:880px){.duo{grid-template-columns:1fr}}
+  .mini-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-2);font-size:13px}
+  .mini-row:last-child{border-bottom:none}
+
+  /* disparos em massa: barra de progresso */
+  .prog{height:8px;background:var(--border-2);border-radius:99px;overflow:hidden;flex:1;min-width:90px}
+  .prog i{display:block;height:100%;background:linear-gradient(90deg,#ff8a3a,#f5611e);border-radius:99px;transition:width .3s}
+
   .login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
   .login .box{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:36px;width:352px;text-align:center;box-shadow:var(--sh-lg)}
   .login .box .p{color:var(--muted);margin-bottom:18px;font-size:13px}
@@ -530,12 +550,14 @@ async function saveNewLead() {
   catch (e) { toast('Erro: ' + e.message); btn.disabled = false; btn.textContent = 'Adicionar lead'; }
 }
 
-/* ===================== MENSAGENS (disparo manual) ===================== */
-let MSG = { image: '', buttons: [], target: 'numero', stageCounts: {} };
+/* ===================== MENSAGENS (disparo manual + em massa) ===================== */
+let MSG = { image: '', buttons: [], target: 'numero', stageCounts: {}, sheet: { recipients: [], invalid: 0, fileName: '' }, schedule: 'now', when: '' };
+let BCASTS = [];
 async function loadMsgs() {
   // contagem por etapa para o seletor de destinatários
   try { const leads = (await api('/leads')).filter(l => l.source !== 'manual'); MSG.stageCounts = {}; for (const l of leads) MSG.stageCounts[l.stage] = (MSG.stageCounts[l.stage] || 0) + 1; MSG.total = leads.length; }
   catch (e) { MSG.stageCounts = {}; MSG.total = 0; }
+  try { BCASTS = await api('/messages/broadcasts'); } catch (e) { BCASTS = []; }
   renderMsgs();
 }
 function renderMsgs() {
@@ -546,12 +568,22 @@ function renderMsgs() {
       <div class="card-box" style="margin-bottom:16px">
         <h4>Destinatários</h4>
         <div class="desc">Para quem enviar essa mensagem.</div>
-        <div class="seg" style="margin-bottom:12px">
+        <div class="seg" id="segTarget" style="margin-bottom:12px">
           <button class="${MSG.target === 'numero' ? 'on' : ''}" onclick="setTarget('numero')">Número avulso</button>
           <button class="${MSG.target === 'stage' ? 'on' : ''}" onclick="setTarget('stage')">Por etapa</button>
           <button class="${MSG.target === 'todos' ? 'on' : ''}" onclick="setTarget('todos')">Todos os leads</button>
+          <button class="${MSG.target === 'planilha' ? 'on' : ''}" onclick="setTarget('planilha')">📄 Planilha</button>
         </div>
         <div id="targetBody">${targetBody()}</div>
+      </div>
+      <div class="card-box" style="margin-bottom:16px">
+        <h4>Agendamento</h4>
+        <div class="desc">Envie agora ou programe data e hora. Disparos programados e por planilha saem em lotes automáticos (anti-bloqueio).</div>
+        <div class="seg" id="segSched" style="margin-bottom:10px">
+          <button class="${MSG.schedule === 'now' ? 'on' : ''}" onclick="setSchedule('now')">Enviar agora</button>
+          <button class="${MSG.schedule === 'later' ? 'on' : ''}" onclick="setSchedule('later')">🗓 Programar</button>
+        </div>
+        <div id="schedBody">${MSG.schedule === 'later' ? `<input type="datetime-local" id="msgWhen" value="${MSG.when}" onchange="MSG.when=this.value" style="max-width:230px">` : ''}</div>
       </div>
       <div class="card-box">
         <h4>Mensagem</h4>
@@ -570,7 +602,7 @@ function renderMsgs() {
           ${MSG.buttons.length < 3 ? `<button class="btn sm ghost" style="margin-top:8px" onclick="addBtn()">+ Adicionar botão</button>` : ''}
         </div>
         <div class="field"><label>Rodapé (opcional)</label><input id="msgFooter" placeholder="Ex.: HyperFlick • IPTV" oninput="renderMsgPreview()"></div>
-        <button class="btn" id="msgSend" onclick="dispatchMsg()" style="width:100%;margin-top:6px">Disparar mensagem</button>
+        <button class="btn" id="msgSend" onclick="dispatchMsg()" style="width:100%;margin-top:6px">${MSG.schedule === 'later' ? '🗓 Programar disparo' : 'Disparar mensagem'}</button>
         <div id="msgResult" style="margin-top:12px"></div>
       </div>
     </div>
@@ -578,16 +610,109 @@ function renderMsgs() {
       <div class="section-h">Pré-visualização</div>
       <div class="wa-preview"><div class="wa-bubble" id="waBubble"></div></div>
     </div>
-  </div>`;
+  </div>
+  <div class="section-h" style="margin-top:24px">📤 Disparos em massa programados</div>
+  <div id="bcastList">${bcastListHtml()}</div>`;
   renderMsgPreview();
 }
 function targetBody() {
   const sc = MSG.stageCounts || {};
   if (MSG.target === 'numero') return `<input id="tgNumber" placeholder="WhatsApp com DDD (ex.: 11999998888)">`;
   if (MSG.target === 'stage') return `<select id="tgStage">${STAGES.map(s => `<option value="${s.id}">${s.label} (${sc[s.id] || 0})</option>`).join('')}</select>`;
+  if (MSG.target === 'planilha') {
+    const sh = MSG.sheet;
+    return `
+      <div class="btn-row" style="margin-bottom:0">
+        <label class="btn sm ghost" style="display:inline-flex">📄 Subir planilha<input type="file" accept=".csv,.txt,.xlsx,.xls" class="hidden" onchange="onSheetFile(this)"></label>
+        ${sh.recipients.length ? `<span class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${sh.recipients.length} número(s) válidos</span>` : '<span style="color:var(--faint);font-size:12px">CSV, TXT ou Excel (.xlsx)</span>'}
+        ${sh.invalid ? `<span class="chip" style="color:var(--yellow);border-color:var(--yellow-bg);background:var(--yellow-bg)">${sh.invalid} ignorado(s)</span>` : ''}
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px">Coluna com o telefone (DDD + número) e, opcionalmente, uma coluna com o nome — use <b>{nome}</b> no texto pra personalizar. ${sh.fileName ? `Arquivo: <b>${esc(sh.fileName)}</b>` : ''}</p>`;
+  }
   return `<div class="chip">Enviar para todos os ${MSG.total || 0} leads com WhatsApp</div>`;
 }
-function setTarget(t) { MSG.target = t; document.querySelectorAll('#msgs .seg button').forEach(b => b.classList.remove('on')); event.target.classList.add('on'); document.getElementById('targetBody').innerHTML = targetBody(); }
+function setTarget(t) { MSG.target = t; document.querySelectorAll('#segTarget button').forEach(b => b.classList.remove('on')); event.target.classList.add('on'); document.getElementById('targetBody').innerHTML = targetBody(); }
+function setSchedule(s) {
+  MSG.schedule = s;
+  document.querySelectorAll('#segSched button').forEach(b => b.classList.remove('on')); event.target.classList.add('on');
+  document.getElementById('schedBody').innerHTML = s === 'later' ? `<input type="datetime-local" id="msgWhen" value="${MSG.when}" onchange="MSG.when=this.value" style="max-width:230px">` : '';
+  const btn = document.getElementById('msgSend'); if (btn) btn.textContent = s === 'later' ? '🗓 Programar disparo' : 'Disparar mensagem';
+}
+
+/* ----- planilha de números (CSV/TXT nativo, XLSX via SheetJS sob demanda) ----- */
+async function ensureXLSX() {
+  if (window.XLSX) return;
+  await new Promise((ok, err) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'; s.onload = ok; s.onerror = () => err(new Error('Falha ao carregar o leitor de Excel.')); document.head.appendChild(s); });
+}
+function rowsToRecipients(rows) {
+  const recipients = []; let invalid = 0; const seen = new Set();
+  for (const cells of rows) {
+    if (!cells || !cells.length) continue;
+    let phone = '', name = '';
+    for (const c of cells) {
+      const v = String(c == null ? '' : c).trim();
+      const digits = v.replace(/\D/g, '');
+      if (!phone && digits.length >= 10 && digits.length <= 13 && digits.length >= v.replace(/[\s()+\-.]/g, '').length - 1) { phone = digits; continue; }
+      if (!name && v && /[a-zA-ZÀ-ú]{2,}/.test(v)) name = v;
+    }
+    if (!phone) { invalid++; continue; }
+    if (seen.has(phone)) continue; seen.add(phone);
+    recipients.push({ phone, name });
+  }
+  // descarta linha de cabeçalho que tenha virado "nome"
+  return { recipients, invalid };
+}
+async function onSheetFile(input) {
+  const f = input.files[0]; if (!f) return;
+  try {
+    let rows = [];
+    if (/\.(xlsx|xls)$/i.test(f.name)) {
+      await ensureXLSX();
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
+    } else {
+      const text = await f.text();
+      const delim = (text.match(/;/g) || []).length >= (text.match(/,/g) || []).length ? ';' : ',';
+      rows = text.split(/\r?\n/).map(l => l.split(/\t/.test(l) ? '\t' : delim));
+    }
+    const { recipients, invalid } = rowsToRecipients(rows);
+    if (!recipients.length) { toast('Nenhum número válido encontrado na planilha.'); return; }
+    MSG.sheet = { recipients, invalid, fileName: f.name };
+    document.getElementById('targetBody').innerHTML = targetBody();
+    toast(`Planilha lida: ${recipients.length} número(s)`);
+  } catch (e) { toast('Erro ao ler planilha: ' + e.message); }
+}
+
+/* ----- lista de disparos programados ----- */
+function bcStatusPill(s) {
+  const map = { agendado: ['pendente', '🗓 agendado'], enviando: ['pendente', '📤 enviando'], pausado: ['cancelado', '⏸ pausado'], concluido: ['pago', '✓ concluído'], cancelado: ['atrasado', '✕ cancelado'] };
+  const [cls, lbl] = map[s] || ['plain', s];
+  return `<span class="pill ${cls}">${lbl}</span>`;
+}
+function bcastListHtml() {
+  if (!BCASTS.length) return '<div class="card-box" style="margin-bottom:0"><p style="color:var(--muted);font-size:13px">Nenhum disparo programado ainda. Use o alvo <b>📄 Planilha</b> ou o agendamento acima pra criar o primeiro.</p></div>';
+  return `<div class="card-box" style="margin-bottom:0">${BCASTS.map(b => {
+    const done = (b.sent || 0) + (b.failed || 0);
+    const pct = b.total ? Math.round(done / b.total * 100) : 0;
+    const acts = [];
+    if (b.status === 'agendado' || b.status === 'enviando') acts.push(`<button class="btn sm ghost" onclick="bcAction('${b.id}','pause')">Pausar</button>`);
+    if (b.status === 'pausado') acts.push(`<button class="btn sm green" onclick="bcAction('${b.id}','resume')">Retomar</button>`);
+    if (b.status === 'agendado' || b.status === 'enviando' || b.status === 'pausado') acts.push(`<button class="btn sm red" onclick="bcAction('${b.id}','cancel')">Cancelar</button>`);
+    if (b.status === 'concluido' || b.status === 'cancelado') acts.push(`<button class="btn sm red" onclick="bcDelete('${b.id}')">Excluir</button>`);
+    return `<div class="mini-row" style="gap:14px">
+      <div style="min-width:0;flex:1">
+        <b style="color:var(--ink)">${esc(b.name || 'Disparo')}</b> ${bcStatusPill(b.status)}
+        <div style="color:var(--faint);font-size:11.5px;margin-top:2px">${fmtDT(b.scheduled_at)} · ${b.sent || 0}/${b.total || 0} enviado(s)${b.failed ? ` · ${b.failed} falha(s)` : ''}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><div class="prog"><i style="width:${pct}%"></i></div><span style="font-size:11.5px;color:var(--muted);font-weight:700">${pct}%</span></div>
+      </div>
+      <div style="display:flex;gap:6px;flex:0 0 auto">${acts.join('')}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+async function refreshBcasts() { try { BCASTS = await api('/messages/broadcasts'); const el = document.getElementById('bcastList'); if (el) el.innerHTML = bcastListHtml(); } catch (e) { } }
+async function bcAction(id, act) { try { await api(`/messages/broadcasts/${id}/${act}`, { method: 'POST', body: JSON.stringify({}) }); toast('Disparo atualizado'); refreshBcasts(); } catch (e) { toast('Erro: ' + e.message); } }
+async function bcDelete(id) { if (!confirm('Excluir este disparo do histórico?')) return; try { await api('/messages/broadcasts/' + id, { method: 'DELETE' }); refreshBcasts(); } catch (e) { toast('Erro: ' + e.message); } }
 function btnList() {
   return MSG.buttons.map((b, i) => `<div class="btn-row"><input value="${esc(b.text)}" placeholder="Texto do botão ${i + 1}" oninput="MSG.buttons[${i}].text=this.value;renderMsgPreview()"><button class="btn sm red" onclick="rmBtn(${i})">×</button></div>`).join('') || '';
 }
@@ -619,19 +744,52 @@ async function dispatchMsg() {
   const footer = document.getElementById('msgFooter').value.trim();
   const buttons = MSG.buttons.filter(b => b.text.trim());
   if (!text && !MSG.image) { toast('Escreva um texto ou anexe uma imagem.'); return; }
-  const payload = { text, footer, buttons, image: MSG.image || '' };
-  if (MSG.target === 'numero') { const n = document.getElementById('tgNumber').value.trim(); if (!n) { toast('Informe o número.'); return; } payload.recipients = [{ phone: n }]; }
-  else if (MSG.target === 'stage') { payload.stage = document.getElementById('tgStage').value; }
-  else { payload.allLeads = true; }
+
+  const scheduled = MSG.schedule === 'later';
+  if (scheduled && !MSG.when) { toast('Escolha a data e hora do disparo.'); return; }
 
   const btn = document.getElementById('msgSend'); btn.disabled = true; btn.textContent = 'Enviando...';
   const res = document.getElementById('msgResult');
   try {
+    // Planilha OU agendamento → vai pra fila de disparos em massa (lotes via cron)
+    if (MSG.target === 'planilha' || scheduled) {
+      let recipients = [];
+      if (MSG.target === 'planilha') {
+        recipients = MSG.sheet.recipients;
+        if (!recipients.length) throw new Error('Suba uma planilha com os números primeiro.');
+      } else if (MSG.target === 'numero') {
+        const n = document.getElementById('tgNumber').value.trim();
+        if (!n) throw new Error('Informe o número.');
+        recipients = [{ phone: n }];
+      } else {
+        const leads = (await api('/leads')).filter(l => l.source !== 'manual');
+        const pick = MSG.target === 'stage' ? leads.filter(l => l.stage === document.getElementById('tgStage').value) : leads;
+        recipients = pick.map(l => ({ phone: l.phone, name: l.name }));
+      }
+      const payload = {
+        name: MSG.target === 'planilha' ? `Planilha ${MSG.sheet.fileName || ''}`.trim() : `Disparo ${MSG.target}`,
+        text, footer, buttons, image: MSG.image || '', recipients,
+        ...(scheduled ? { scheduledAt: new Date(MSG.when).toISOString() } : {}),
+      };
+      const r = await api('/messages/broadcasts', { method: 'POST', body: JSON.stringify(payload) });
+      if (!scheduled) api('/messages/broadcasts/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshBcasts).catch(() => {});
+      res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ Disparo ${scheduled ? 'programado' : 'na fila'} — ${r.total} número(s)${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}</div>`;
+      toast(scheduled ? 'Disparo programado! 🗓' : 'Disparo na fila — enviando em lotes.');
+      MSG.sheet = { recipients: [], invalid: 0, fileName: '' };
+      refreshBcasts();
+      return;
+    }
+
+    // Envio imediato (número avulso / etapa / todos) — caminho original
+    const payload = { text, footer, buttons, image: MSG.image || '' };
+    if (MSG.target === 'numero') { const n = document.getElementById('tgNumber').value.trim(); if (!n) { toast('Informe o número.'); btn.disabled = false; btn.textContent = 'Disparar mensagem'; return; } payload.recipients = [{ phone: n }]; }
+    else if (MSG.target === 'stage') { payload.stage = document.getElementById('tgStage').value; }
+    else { payload.allLeads = true; }
     const r = await api('/messages/send', { method: 'POST', body: JSON.stringify(payload) });
     res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.sent} enviada(s)${r.failed ? ` · ${r.failed} falha(s)` : ''} de ${r.total}</div>`;
     toast(`Disparo concluído: ${r.sent}/${r.total}`);
   } catch (e) { res.innerHTML = `<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">${esc(e.message)}</div>`; }
-  finally { btn.disabled = false; btn.textContent = 'Disparar mensagem'; }
+  finally { btn.disabled = false; btn.textContent = MSG.schedule === 'later' ? '🗓 Programar disparo' : 'Disparar mensagem'; }
 }
 
 /* ===================== FINANCEIRO ===================== */
@@ -649,13 +807,76 @@ function finTab(t) {
   document.querySelectorAll('#fin [data-fs]').forEach(b => b.classList.toggle('on', b.dataset.fs === t));
   ({ resumo: finResumo, cobrancas: finCobrancas, despesas: finDespesas, relatorios: finRelatorios }[t])();
 }
+const MESES_BR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const mesLbl = (m) => MESES_BR[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
 async function finResumo() {
-  const s = await api('/payments/summary/all'); const f = s.financeiro;
-  document.getElementById('finBody').innerHTML = `<div class="gcards">
-      <div class="gcard g-green"><div class="lbl">Recebido</div><div class="val">${money(f.recebido)}</div><div class="sub">${f.pagos} pagamentos</div></div>
-      <div class="gcard g-orange"><div class="lbl">A receber</div><div class="val">${money(f.pendente)}</div><div class="sub">${f.emAberto} em aberto</div></div>
-      <div class="gcard g-red"><div class="lbl">Atrasado + despesas</div><div class="val">${money(f.atrasado + f.despesas)}</div><div class="sub">Atrasado ${money(f.atrasado)}</div></div>
-      <div class="gcard g-dark"><div class="lbl">Lucro (sobra)</div><div class="val">${money(f.lucro)}</div><div class="sub">MRR ${money(s.mrr)}</div></div>
+  const body = document.getElementById('finBody');
+  body.innerHTML = '<p style="color:var(--muted);font-size:13px">Carregando...</p>';
+  const today = new Date().toISOString().slice(0, 10);
+  const in15 = new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10);
+  const from60 = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const [s, serieR, rows] = await Promise.all([
+    api('/payments/summary/all'),
+    api('/payments/reports/series?months=6').catch(() => ({ series: [] })),
+    api(`/payments?from=${from60}&to=${in15}`).catch(() => []),
+  ]);
+  const f = s.financeiro, serie = serieR.series || [];
+
+  const atrasados = rows.filter(p => p.status === 'atrasado');
+  const aVencer = rows.filter(p => p.status === 'pendente' && p.due_date && p.due_date >= today)
+    .sort((a, b) => (a.due_date < b.due_date ? -1 : 1)).slice(0, 8);
+  const maxV = Math.max(1, ...serie.flatMap(x => [x.receita, x.despesas]));
+  const chart = serie.map(x => `
+    <div class="grp">
+      <div class="lu" style="color:${x.lucro >= 0 ? 'var(--green)' : 'var(--red)'}">${money(x.lucro)}</div>
+      <div class="bars">
+        <div class="bar rec" style="height:${Math.max(2, Math.round(x.receita / maxV * 100))}%" title="Receita ${money(x.receita)}"></div>
+        <div class="bar desp" style="height:${Math.max(2, Math.round(x.despesas / maxV * 100))}%" title="Despesas ${money(x.despesas)}"></div>
+      </div>
+      <div class="ml">${mesLbl(x.month)}</div>
+    </div>`).join('');
+
+  const miniPay = (p, late) => `
+    <div class="mini-row">
+      <div style="min-width:0"><b style="color:var(--ink)">${esc(p.lead?.name || '—')}</b>
+        <div style="color:var(--faint);font-size:11.5px">${esc(p.plan || '')} · vence ${fmtDate(p.due_date)}</div></div>
+      <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+        <b style="color:${late ? 'var(--red)' : 'var(--ink)'}">${money(p.amount)}</b>
+        <button class="btn sm" onclick="payPix('${p.id}')">Pix</button>
+        <button class="btn sm green" onclick="payMark('${p.id}','pago')">Pago</button>
+      </div>
+    </div>`;
+
+  body.innerHTML = `
+    <div class="gcards">
+      <div class="gcard g-green"><div class="lbl">💰 Recebido no mês</div><div class="val">${money(f.recebidoMes)}</div><div class="sub">${f.pagosMes} pagamento(s) · total geral ${money(f.recebido)}</div></div>
+      <div class="gcard g-orange"><div class="lbl">⏳ A receber</div><div class="val">${money(f.pendente)}</div><div class="sub">${f.emAberto} cobrança(s) em aberto</div></div>
+      <div class="gcard g-red"><div class="lbl">🔴 Atrasado</div><div class="val">${money(f.atrasado)}</div><div class="sub">Despesas do mês ${money(f.despesasMes)}</div></div>
+      <div class="gcard g-dark"><div class="lbl">📈 Lucro do mês</div><div class="val">${money(f.lucroMes)}</div><div class="sub">Recebido − despesas do mês</div></div>
+    </div>
+    <div class="grid-stats">
+      <div class="stat"><div class="lbl">MRR (recorrente/mês)</div><div class="val purple">${money(s.mrr)}</div></div>
+      <div class="stat"><div class="lbl">Clientes ativos</div><div class="val green">${s.clientesAtivos || 0}</div></div>
+      <div class="stat"><div class="lbl">Ticket médio</div><div class="val orange">${money(f.ticketMedio)}</div></div>
+      <div class="stat"><div class="lbl">Lucro acumulado</div><div class="val ${f.lucro >= 0 ? 'green' : 'red'}">${money(f.lucro)}</div></div>
+    </div>
+    <div class="card-box">
+      <h4>📊 Receita × Despesas — últimos 6 meses</h4>
+      <div class="desc">O número em cima de cada mês é o lucro (sobra).</div>
+      <div class="fchart">${chart || '<p style="color:var(--muted);font-size:13px">Sem dados ainda.</p>'}</div>
+      <div class="legend"><span><i style="background:#0f9d58"></i>Receita</span><span><i style="background:#e23b40"></i>Despesas</span></div>
+    </div>
+    <div class="duo">
+      <div class="card-box" style="margin-bottom:0">
+        <h4>🔴 Atrasados (${atrasados.length})</h4>
+        <div class="desc">Cobranças vencidas — mande o Pix com 1 clique.</div>
+        ${atrasados.length ? atrasados.map(p => miniPay(p, true)).join('') : '<p style="color:var(--muted);font-size:13px">Nenhum atraso. 🎉</p>'}
+      </div>
+      <div class="card-box" style="margin-bottom:0">
+        <h4>⏰ Próximos vencimentos (15 dias)</h4>
+        <div class="desc">Quem vence em breve — antecipe a cobrança.</div>
+        ${aVencer.length ? aVencer.map(p => miniPay(p, false)).join('') : '<p style="color:var(--muted);font-size:13px">Nada vencendo nos próximos 15 dias.</p>'}
+      </div>
     </div>`;
 }
 async function finCobrancas() {
@@ -699,7 +920,7 @@ async function addCharge() {
   try { await api('/payments/manual', { method: 'POST', body: JSON.stringify({ name, phone: document.getElementById('mcPhone').value, plan: document.getElementById('mcPlan').value, amount, due_date: document.getElementById('mcDue').value || undefined }) }); toast('Cobrança adicionada'); finCobrancas(); }
   catch (e) { toast('Erro: ' + e.message); }
 }
-async function payMark(id, status) { try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); finCobrancas(); } catch (e) { toast('Erro: ' + e.message); } }
+async function payMark(id, status) { try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status }) }); toast('Atualizado'); finTab(finSub); } catch (e) { toast('Erro: ' + e.message); } }
 async function payPix(id) { toast('Gerando Pix...'); try { const r = await api('/payments/' + id + '/pix', { method: 'POST', body: JSON.stringify({}) }); toast(r.whatsappSent ? 'Pix enviado no WhatsApp' : 'Pix gerado'); } catch (e) { toast('Erro: ' + e.message); } }
 async function delCharge(id) { if (!confirm('Excluir esta cobrança?')) return; try { await api('/payments/' + id, { method: 'DELETE' }); toast('Cobrança excluída'); finCobrancas(); } catch (e) { toast('Erro: ' + e.message); } }
 function editCharge(id) {
@@ -776,23 +997,41 @@ async function addExpense() {
 async function delExpense(id) { if (!confirm('Excluir despesa?')) return; try { await api('/expenses/' + id, { method: 'DELETE' }); finDespesas(); } catch (e) { toast('Erro: ' + e.message); } }
 async function finRelatorios() {
   const month = (window._repMonth || new Date().toISOString().slice(0, 7));
-  const r = await api('/payments/reports/monthly?month=' + month); const cats = Object.entries(r.porCategoria || {});
+  const r = await api('/payments/reports/monthly?month=' + month);
+  const cats = Object.entries(r.porCategoria || {}).sort((a, b) => b[1] - a[1]);
+  const planos = Object.entries(r.porPlano || {}).sort((a, b) => b[1].total - a[1].total);
   document.getElementById('finBody').innerHTML = `
     <div class="row" style="align-items:center;gap:10px;margin-bottom:18px"><label style="color:var(--muted);font-size:13px;flex:0 0 auto">Mês:</label><input type="month" value="${month}" onchange="window._repMonth=this.value;finRelatorios()" style="max-width:200px"></div>
     <div class="grid-stats">
       <div class="stat"><div class="lbl">Receita recebida</div><div class="val green">${money(r.receita)}</div></div>
       <div class="stat"><div class="lbl">Despesas</div><div class="val red">${money(r.despesas)}</div></div>
       <div class="stat"><div class="lbl">Sobra (lucro)</div><div class="val ${r.sobra >= 0 ? 'green' : 'red'}">${money(r.sobra)}</div></div>
+      <div class="stat"><div class="lbl">Pagamentos</div><div class="val">${r.qtdPagamentos || 0}</div></div>
+      <div class="stat"><div class="lbl">Ticket médio</div><div class="val orange">${money(r.ticketMedio)}</div></div>
     </div>
-    <div class="section-h">Despesas por categoria</div>
-    <table><thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
-      <tbody>${cats.length ? cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td>${money(v)}</td></tr>`).join('') : '<tr><td colspan="2" style="color:var(--muted)">Sem despesas no mês.</td></tr>'}</tbody></table>`;
+    <div class="duo">
+      <div>
+        <div class="section-h">💎 Receita por plano</div>
+        <table><thead><tr><th>Plano</th><th>Vendas</th><th>Valor</th></tr></thead>
+          <tbody>${planos.length ? planos.map(([p, v]) => `<tr><td><b style="color:var(--ink)">${esc(p)}</b></td><td>${v.qtd}</td><td>${money(v.total)}</td></tr>`).join('') : '<tr><td colspan="3" style="color:var(--muted)">Sem receita no mês.</td></tr>'}</tbody></table>
+      </div>
+      <div>
+        <div class="section-h">🧾 Despesas por categoria</div>
+        <table><thead><tr><th>Categoria</th><th>Valor</th></tr></thead>
+          <tbody>${cats.length ? cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td>${money(v)}</td></tr>`).join('') : '<tr><td colspan="2" style="color:var(--muted)">Sem despesas no mês.</td></tr>'}</tbody></table>
+      </div>
+    </div>`;
 }
 
 /* ===================== CONFIGURAÇÕES ===================== */
 async function loadConfig() {
   const [list, cfg] = await Promise.all([api('/instances'), api('/settings').catch(() => ({}))]);
   const adminPhone = cfg.settings?.admin_phone?.phone || '';
+  const wq = cfg.settings?.wa_quiz || {};
+  const wqEnabled = wq.enabled !== false;
+  const wqTrigger = wq.trigger || 'Quero meu teste grátis da HyperFlick! 🧡';
+  const connected = list.find(i => i.status === 'connected');
+  const waLink = connected?.phone ? `https://wa.me/${String(connected.phone).replace(/\D/g, '')}?text=${encodeURIComponent(wqTrigger)}` : '';
   document.getElementById('config').innerHTML = `
     <div class="card-box">
       <h4>WhatsApp</h4>
@@ -801,11 +1040,31 @@ async function loadConfig() {
       <button class="btn" style="margin-top:8px" onclick="newInst()">Nova instância</button>
     </div>
     <div class="card-box">
+      <h4>🤖 Quiz no WhatsApp (tráfego pago)</h4>
+      <div class="desc">Quando um número novo manda a frase-gatilho, o robô cria o lead e qualifica com botões: nome → como assiste → aparelho → app ideal → gera o teste → oferece os planos.</div>
+      <div class="field" style="margin-top:4px"><label><input type="checkbox" id="wqEnabled" ${wqEnabled ? 'checked' : ''} style="width:auto;margin-right:8px;vertical-align:-2px">Quiz ativo (números desconhecidos com a frase-gatilho entram no funil)</label></div>
+      <div class="field"><label>Frase-gatilho (texto que o anúncio pré-preenche no WhatsApp)</label>
+        <input id="wqTrigger" value="${esc(wqTrigger)}">
+      </div>
+      ${waLink ? `<div class="field"><label>Link pro seu anúncio (wa.me com a frase pronta)</label>
+        <div class="row"><input id="wqLink" value="${esc(waLink)}" readonly style="color:var(--muted)"><button class="btn sm ghost" style="flex:0 0 auto" onclick="navigator.clipboard.writeText(document.getElementById('wqLink').value);toast('Link copiado!')">Copiar</button></div>
+      </div>` : '<p style="color:var(--yellow);font-size:12.5px">Conecte uma instância do WhatsApp pra gerar o link do anúncio.</p>'}
+      <button class="btn" onclick="saveWaQuiz()">Salvar quiz</button>
+    </div>
+    <div class="card-box">
       <h4>Notificações de venda</h4>
       <div class="desc">Número que recebe um aviso no WhatsApp a cada venda paga.</div>
       <div class="row" style="max-width:440px"><input id="adminPhone" placeholder="WhatsApp admin (com DDD)" value="${esc(adminPhone)}"><button class="btn" style="flex:0 0 auto" onclick="saveAdminPhone()">Salvar</button></div>
     </div>`;
   refreshWaStatus();
+}
+async function saveWaQuiz() {
+  const value = {
+    enabled: document.getElementById('wqEnabled').checked,
+    trigger: document.getElementById('wqTrigger').value.trim(),
+  };
+  try { await api('/settings/wa_quiz', { method: 'PUT', body: JSON.stringify({ value }) }); toast('Quiz do WhatsApp salvo'); loadConfig(); }
+  catch (e) { toast('Erro: ' + e.message); }
 }
 function instRow(i) {
   const st = i.status === 'connected' ? 'pago' : i.status === 'connecting' ? 'pendente' : 'atrasado';

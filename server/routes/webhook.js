@@ -6,6 +6,7 @@ import { logMessage } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
 import { deliverPixToLead, sendMonthlyPix } from '../lib/followup.js';
 import { applyApprovedPayment } from '../lib/billing.js';
+import { getWaQuizSettings, quizTriggerMatch, startWaQuiz, handleQuizReply } from '../lib/waquiz.js';
 
 const router = Router();
 
@@ -46,17 +47,22 @@ router.post('/uazapi', async (req, res) => {
     if (hasSupabase()) {
       const { fromMe, phone, text, name, messageId } = parseInbound(req.body);
       if (!fromMe && phone) {
-        // Só processa mensagens de quem JÁ é lead (veio do quiz/funil ou de um disparo).
-        // Conversas avulsas do WhatsApp (número desconhecido) NÃO entram no CRM.
         // Busca por VARIANTES do telefone: o JID do WhatsApp pode vir sem o
         // nono dígito, enquanto o lead foi salvo com ele (e vice-versa).
-        const { data: lead } = await sb().from('leads').select('id,stage,name,phone,plan')
+        const { data: lead } = await sb().from('leads').select('*')
           .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
         if (lead) {
           await logMessage({ leadId: lead.id, phone, direction: 'in', body: text, messageId });
 
+          // Lead no meio do quiz do WhatsApp → a resposta é consumida pelo quiz.
+          let consumed = false;
+          if (lead.wa_quiz_state && lead.wa_quiz_state !== 'done') {
+            const r = await handleQuizReply(lead, text);
+            consumed = r.handled;
+          }
+
           // Gatilho de compra: cliente demonstrou intenção (ou clicou "Quero pagar agora")
-          if (isBuyIntent(text)) {
+          if (!consumed && isBuyIntent(text)) {
           try {
             if (lead.stage === 'ganho') {
               // cliente existente: clicou no botão da cobrança mensal → manda o Pix da cobrança em aberto
@@ -69,6 +75,13 @@ router.post('/uazapi', async (req, res) => {
               }
             }
           } catch (e) { console.error('buy-intent pix', e.message); }
+          }
+        } else {
+          // Número DESCONHECIDO: só entra no CRM se a mensagem casar com a
+          // frase-gatilho do quiz (tráfego pago → wa.me). Conversa avulsa segue fora.
+          const qs = await getWaQuizSettings();
+          if (qs.enabled && quizTriggerMatch(text, qs.trigger)) {
+            await startWaQuiz({ phone, pushName: name, inboundText: text, inboundId: messageId });
           }
         }
       }

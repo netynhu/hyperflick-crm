@@ -53,6 +53,9 @@ alter table leads add column if not exists test_dns        text;
 alter table leads add column if not exists test_package    text;
 alter table leads add column if not exists pay_url         text;
 alter table leads add column if not exists test_created_at timestamptz;
+-- Quiz de qualificação dentro do WhatsApp (tráfego pago → wa.me → quiz por botões)
+-- estados: ask_name | ask_situacao | ask_device | ask_brand | ask_mobile | generating | ask_plan | done
+alter table leads add column if not exists wa_quiz_state   text;
 
 -- ============================================================
 -- PAYMENTS  (cobranças / financeiro — quem pagou, quem não)
@@ -169,6 +172,45 @@ create table if not exists followups (
   sent_at    timestamptz default now()
 );
 create unique index if not exists followups_lead_type on followups (lead_id, type);
+
+-- ============================================================
+-- BROADCASTS  (disparos em massa: planilha de números + agendamento)
+-- ============================================================
+create table if not exists broadcasts (
+  id            uuid primary key default gen_random_uuid(),
+  name          text,
+  message_text  text,
+  image         text,                              -- URL ou data-uri
+  footer        text,
+  buttons       jsonb default '[]'::jsonb,         -- [{"text":"..."}]
+  status        text not null default 'agendado'
+                check (status in ('agendado','enviando','pausado','concluido','cancelado')),
+  scheduled_at  timestamptz default now(),
+  total         int default 0,
+  sent          int default 0,
+  failed        int default 0,
+  finished_at   timestamptz,
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
+);
+create index if not exists broadcasts_status_idx on broadcasts (status, scheduled_at);
+
+drop trigger if exists trg_broadcasts_updated on broadcasts;
+create trigger trg_broadcasts_updated before update on broadcasts
+for each row execute function set_updated_at();
+
+create table if not exists broadcast_recipients (
+  id            uuid primary key default gen_random_uuid(),
+  broadcast_id  uuid references broadcasts(id) on delete cascade,
+  phone         text not null,                     -- só dígitos com DDI
+  name          text,                              -- usado no template {nome}
+  status        text not null default 'pendente'
+                check (status in ('pendente','enviado','falhou')),
+  error         text,
+  sent_at       timestamptz,
+  created_at    timestamptz default now()
+);
+create index if not exists bcast_rcpt_idx on broadcast_recipients (broadcast_id, status);
 
 -- ============================================================
 -- VIEW: resumo financeiro

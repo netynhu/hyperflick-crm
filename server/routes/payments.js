@@ -4,7 +4,7 @@ import { requireAdmin } from '../middleware.js';
 import { config } from '../config.js';
 import { planMonthly, normalizePhone, planMonths } from '../lib/helpers.js';
 import { createPixPayment } from '../lib/mercadopago.js';
-import { sendWhatsApp, notifyAdmin, sendPixMessage, addPaidAppExpenseIfNeeded } from '../lib/service.js';
+import { sendWhatsApp, notifyAdmin, buildSaleAlert, sendPixMessage, addPaidAppExpenseIfNeeded } from '../lib/service.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -155,9 +155,11 @@ router.patch('/:id', async (req, res) => {
 
       if (data.lead_id) {
         const { data: lead } = await sb().from('leads').select('name,test_username,app').eq('id', data.lead_id).maybeSingle();
-        const valor = Number(data.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-        const usuario = lead?.test_username ? `\nUsuário: ${lead.test_username}` : '';
-        await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead?.name || '-'}${usuario}\nPlano: ${data.plan || '-'}\nValor: R$ ${valor}`);
+        await notifyAdmin(buildSaleAlert({
+          name: lead?.name, username: lead?.test_username,
+          plan: data.plan, amount: data.amount,
+          method: data.method === 'pix' ? 'Pix' : 'Confirmado no painel',
+        }));
         // 6 meses+ com app pago → lança o custo do app (R$ 20) nas despesas
         if (lead) await addPaidAppExpenseIfNeeded({ lead, plan: data.plan });
       }
@@ -177,21 +179,31 @@ router.delete('/:id', async (req, res) => {
 // Resumo / dashboard financeiro + funil
 router.get('/summary/all', async (_req, res) => {
   try {
-    const { data: payments } = await sb().from('payments').select('amount,status');
+    const { data: payments } = await sb().from('payments').select('amount,status,paid_at');
     // Funil só conta leads do CRM (exclui clientes de cobrança manual).
     const { data: leads } = await sb().from('leads').select('stage,plan,source').neq('source', 'manual');
-    const { data: expenses } = await sb().from('expenses').select('amount');
+    const { data: expenses } = await sb().from('expenses').select('amount,date');
 
-    const fin = { recebido: 0, pendente: 0, atrasado: 0, pagos: 0, emAberto: 0 };
+    const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const fin = { recebido: 0, pendente: 0, atrasado: 0, pagos: 0, emAberto: 0, recebidoMes: 0, pagosMes: 0 };
     for (const p of payments || []) {
       const amt = Number(p.amount) || 0;
-      if (p.status === 'pago') { fin.recebido += amt; fin.pagos++; }
+      if (p.status === 'pago') {
+        fin.recebido += amt; fin.pagos++;
+        if ((p.paid_at || '').slice(0, 7) === mesAtual) { fin.recebidoMes += amt; fin.pagosMes++; }
+      }
       else if (p.status === 'atrasado') { fin.atrasado += amt; fin.emAberto++; }
       else if (p.status === 'pendente') { fin.pendente += amt; fin.emAberto++; }
     }
     const despesas = (expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const despesasMes = (expenses || []).filter((e) => (e.date || '').slice(0, 7) === mesAtual)
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0);
     fin.despesas = Math.round(despesas * 100) / 100;
+    fin.despesasMes = Math.round(despesasMes * 100) / 100;
     fin.lucro = Math.round((fin.recebido - despesas) * 100) / 100;
+    fin.lucroMes = Math.round((fin.recebidoMes - despesasMes) * 100) / 100;
+    fin.recebidoMes = Math.round(fin.recebidoMes * 100) / 100;
+    fin.ticketMedio = fin.pagos ? Math.round((fin.recebido / fin.pagos) * 100) / 100 : 0;
 
     const stages = { lead: 0, testando: 0, ganho: 0, perdido: 0, followup: 0 };
     let mrr = 0;
@@ -202,7 +214,47 @@ router.get('/summary/all', async (_req, res) => {
     const totalLeads = (leads || []).length;
     const conversao = totalLeads ? (stages.ganho / totalLeads) * 100 : 0;
 
-    res.json({ financeiro: fin, funil: stages, mrr: Math.round(mrr * 100) / 100, conversao: Math.round(conversao * 10) / 10, totalLeads });
+    res.json({
+      financeiro: fin, funil: stages, mrr: Math.round(mrr * 100) / 100,
+      conversao: Math.round(conversao * 10) / 10, totalLeads,
+      clientesAtivos: stages.ganho,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Série mensal (receita × despesas × lucro) para o gráfico do Financeiro.
+// ?months=6 (3..12)
+router.get('/reports/series', async (req, res) => {
+  try {
+    const months = Math.min(12, Math.max(3, Number(req.query.months) || 6));
+    const now = new Date();
+    const buckets = {};
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 15);
+      buckets[d.toISOString().slice(0, 7)] = { receita: 0, despesas: 0 };
+    }
+    const startIso = Object.keys(buckets)[0] + '-01';
+
+    const { data: pays } = await sb().from('payments').select('amount,paid_at')
+      .eq('status', 'pago').gte('paid_at', startIso);
+    for (const p of pays || []) {
+      const m = (p.paid_at || '').slice(0, 7);
+      if (buckets[m]) buckets[m].receita += Number(p.amount) || 0;
+    }
+    const { data: exps } = await sb().from('expenses').select('amount,date').gte('date', startIso);
+    for (const e of exps || []) {
+      const m = (e.date || '').slice(0, 7);
+      if (buckets[m]) buckets[m].despesas += Number(e.amount) || 0;
+    }
+
+    res.json({
+      series: Object.entries(buckets).map(([month, v]) => ({
+        month,
+        receita: Math.round(v.receita * 100) / 100,
+        despesas: Math.round(v.despesas * 100) / 100,
+        lucro: Math.round((v.receita - v.despesas) * 100) / 100,
+      })),
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -218,6 +270,15 @@ router.get('/reports/monthly', async (req, res) => {
     const { data: pays } = await sb().from('payments').select('amount,status,paid_at,plan')
       .eq('status', 'pago').gte('paid_at', start).lt('paid_at', end);
     const receita = (pays || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+    // receita por plano (qual plano traz mais dinheiro no mês)
+    const porPlano = {};
+    for (const p of pays || []) {
+      const k = p.plan || 'Sem plano';
+      (porPlano[k] ||= { total: 0, qtd: 0 });
+      porPlano[k].total += Number(p.amount) || 0;
+      porPlano[k].qtd++;
+    }
 
     const { data: exps } = await sb().from('expenses').select('amount,category,description,date')
       .gte('date', start).lt('date', end);
@@ -235,9 +296,11 @@ router.get('/reports/monthly', async (req, res) => {
       receita: Math.round(receita * 100) / 100,
       despesas: Math.round(despesas * 100) / 100,
       sobra: Math.round((receita - despesas) * 100) / 100,
+      ticketMedio: pays?.length ? Math.round((receita / pays.length) * 100) / 100 : 0,
       qtdPagamentos: (pays || []).length,
       qtdDespesas: (exps || []).length,
       porCategoria,
+      porPlano,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

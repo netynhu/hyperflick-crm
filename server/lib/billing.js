@@ -5,7 +5,7 @@
 import { sb } from '../supabase.js';
 import { planMonths } from './helpers.js';
 import { getPayment } from './mercadopago.js';
-import { sendWhatsApp, notifyAdmin, addPaidAppExpenseIfNeeded } from './service.js';
+import { sendWhatsApp, notifyAdmin, buildSaleAlert, addPaidAppExpenseIfNeeded } from './service.js';
 
 export async function applyApprovedPayment({ payment, leadId: leadIdHint }) {
   const leadId = payment?.lead_id || leadIdHint;
@@ -48,9 +48,10 @@ export async function applyApprovedPayment({ payment, leadId: leadIdHint }) {
         await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
       } catch (e) { /* ignore */ }
       // avisa o admin da venda (com o usuário de acesso, pra renovar no painel)
-      const valor = Number(payment?.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-      const usuario = lead.test_username ? `\nUsuário: ${lead.test_username}` : '';
-      await notifyAdmin(`💰 NOVA VENDA HyperFlick\nCliente: ${lead.name}${usuario}\nPlano: ${payment?.plan || '-'}\nValor: R$ ${valor}\nForma: Pix`);
+      await notifyAdmin(buildSaleAlert({
+        name: lead.name, username: lead.test_username,
+        plan: payment?.plan, amount: payment?.amount, method: 'Pix',
+      }));
     }
   }
   return { ok: true };

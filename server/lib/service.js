@@ -47,7 +47,8 @@ export async function sendWhatsApp({ leadId, phone, text }) {
 
 // Envia mídia (imagem) e opcionalmente botões, registrando na tabela messages.
 // Usa a instância conectada. Lança erro (NO_INSTANCE) se não houver.
-export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', buttons = [], footer = '' }) {
+// listButton: se informado, envia como LISTA (suporta 4+ opções) em vez de botões.
+export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', buttons = [], footer = '', listButton = '' }) {
   const inst = await getActiveInstance();
   if (!inst) { const e = new Error('Nenhuma instância WhatsApp conectada.'); e.code = 'NO_INSTANCE'; throw e; }
   const number = normalizePhone(phone);
@@ -68,9 +69,12 @@ export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', b
     if (image) {
       await uazapi.sendMedia(inst.token, number, { type: 'image', file: image, text: choices.length ? '' : text });
     }
-    // 2) botões (com o texto) — ou texto puro se não houve imagem
+    // 2) botões/lista (com o texto) — ou texto puro se não houve imagem
     if (choices.length) {
-      await uazapi.sendMenu(inst.token, number, { text, choices, footerText: footer });
+      await uazapi.sendMenu(inst.token, number, {
+        text, choices, footerText: footer,
+        ...(listButton ? { type: 'list', listButton } : {}),
+      });
     } else if (!image) {
       await uazapi.sendText(inst.token, number, text);
     }
@@ -127,6 +131,28 @@ export async function logMessage({ leadId, phone, direction, body, messageId = n
   if (leadId) {
     await sb().from('leads').update({ last_contact_at: new Date().toISOString() }).eq('id', leadId);
   }
+}
+
+// Mensagem padrão de NOVA VENDA para o admin — usada pelo webhook do
+// Mercado Pago, pela conciliação do cron e pelo "marcar pago" do CRM.
+export function buildSaleAlert({ name, username, plan, amount, method = 'Pix' }) {
+  const valor = Number(amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  const quando = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
+  }).format(new Date());
+  return [
+    '🧡 *HYPERFLICK* — 🎉 *NOVA VENDA CONFIRMADA!*',
+    '━━━━━━━━━━━━━━━',
+    `👤 *Cliente:* ${name || '—'}`,
+    ...(username ? [`🔑 *Usuário:* ${username}`] : []),
+    `📦 *Plano:* ${plan || '—'}`,
+    `💰 *Valor:* R$ ${valor}`,
+    `💳 *Pagamento:* ${method} ✅`,
+    `🗓️ *Data:* ${quando}`,
+    '━━━━━━━━━━━━━━━',
+    '🚀 Acesso do cliente ativo. Lembre-se de renovar no painel!',
+  ].join('\n');
 }
 
 // Notifica o número admin (configurado em settings.admin_phone) — sem registrar como conversa.

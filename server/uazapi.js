@@ -65,12 +65,13 @@ export const uazapi = {
       body: { number, type, file, text, ...(docName ? { docName } : {}) },
     });
   },
-  // Envia menu com botões de resposta rápida.
-  // choices = ['Opção 1', 'Opção 2', ...]  (botões de resposta)
-  sendMenu(token, number, { text, choices = [], footerText = '', type = 'button' } = {}) {
+  // Envia menu com botões de resposta rápida ou lista de opções.
+  // choices = ['Opção 1', 'Opção 2', ...]
+  // type 'list' precisa de listButton (texto do botão que abre a lista).
+  sendMenu(token, number, { text, choices = [], footerText = '', type = 'button', listButton = '' } = {}) {
     return call('/send/menu', {
       method: 'POST', token,
-      body: { number, type, text, choices, footerText },
+      body: { number, type, text, choices, footerText, ...(listButton ? { listButton } : {}) },
     });
   },
   // Registra o webhook para receber mensagens de entrada

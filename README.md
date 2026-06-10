@@ -130,6 +130,29 @@ Quando o cliente paga, o **webhook do Mercado Pago** marca a cobrança como **pa
 
 No CRM, o botão **💠 Enviar Pix** no detalhe do lead gera e envia o Pix na hora.
 
+## Quiz no WhatsApp (tráfego pago)
+
+Em vez do quiz na página, o anúncio aponta para um link **wa.me** com uma frase-gatilho
+pré-preenchida. Quando um número **desconhecido** manda essa frase, o robô cria o lead e
+qualifica por botões/listas: nome → como assiste hoje → aparelho → marca → app ideal →
+**gera o teste** → oferece os planos. Tudo em `server/lib/waquiz.js`.
+
+- Configure em **CRM → Configurações → Quiz no WhatsApp**: ativar/desativar, frase-gatilho
+  e o link pronto pro anúncio (copiar e colar no gerenciador de anúncios).
+- Rode de novo o `supabase/schema.sql` (cria a coluna `leads.wa_quiz_state`).
+- Mensagens avulsas de números desconhecidos continuam **fora** do CRM.
+
+## Disparos em massa (planilha + agendamento)
+
+Em **CRM → Mensagens**, escolha o alvo **📄 Planilha** (CSV, TXT ou Excel com telefones e,
+opcionalmente, nomes — use `{nome}` no texto) e/ou **🗓 Programar** com data e hora.
+O disparo entra numa fila (`broadcasts`) processada **em lotes** pelo cron, com pausa entre
+envios (anti-bloqueio). A lista na própria aba mostra progresso e permite pausar/retomar/cancelar.
+
+- Rode de novo o `supabase/schema.sql` (cria `broadcasts` e `broadcast_recipients`).
+- O `/api/cron/followup` já processa um lote por execução. Para filas grandes, aponte um
+  cron mais frequente (1 min) para `https://SEU-DOMINIO/api/cron/broadcast?token=SEU_CRON_SECRET`.
+
 ## Estrutura
 
 ```
