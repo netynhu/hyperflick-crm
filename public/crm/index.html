@@ -550,93 +550,179 @@ async function saveNewLead() {
   catch (e) { toast('Erro: ' + e.message); btn.disabled = false; btn.textContent = 'Adicionar lead'; }
 }
 
-/* ===================== MENSAGENS (disparo manual + em massa) ===================== */
-let MSG = { image: '', buttons: [], target: 'numero', stageCounts: {}, sheet: { recipients: [], invalid: 0, fileName: '' }, schedule: 'now', when: '' };
-let BCASTS = [];
+/* ===================== MENSAGENS (avulsa + disparo em massa) ===================== */
+let MSGTAB = 'single'; // single | mass
+let MSG = { text: '', footer: '', image: '', buttons: [], stageCounts: {}, total: 0 }; // composer compartilhado
+let SINGLE = { instanceId: '', number: '' };
+let MASS = { target: 'planilha', sheet: { recipients: [], invalid: 0, fileName: '' }, stage: 'lead', instanceId: '', delayMin: 20, delayMax: 180, schedule: 'now', when: '' };
+let BCASTS = [], INSTANCES = [];
+
 async function loadMsgs() {
   // contagem por etapa para o seletor de destinatários
   try { const leads = (await api('/leads')).filter(l => l.source !== 'manual'); MSG.stageCounts = {}; for (const l of leads) MSG.stageCounts[l.stage] = (MSG.stageCounts[l.stage] || 0) + 1; MSG.total = leads.length; }
   catch (e) { MSG.stageCounts = {}; MSG.total = 0; }
+  try { INSTANCES = (await api('/instances')).filter(i => i.status === 'connected'); } catch (e) { INSTANCES = []; }
+  // pré-seleciona a instância padrão (e descarta seleção de instância que sumiu)
+  const def = INSTANCES.find(i => i.is_default) || INSTANCES[0];
+  if (!INSTANCES.find(i => i.id === SINGLE.instanceId)) SINGLE.instanceId = def?.id || '';
+  if (!INSTANCES.find(i => i.id === MASS.instanceId)) MASS.instanceId = def?.id || '';
   try { BCASTS = await api('/messages/broadcasts'); } catch (e) { BCASTS = []; }
   renderMsgs();
 }
+function msgTab(t) { MSGTAB = t; renderMsgs(); }
+function sendLabel() { return MSGTAB === 'single' ? 'Enviar mensagem' : (MASS.schedule === 'later' ? '🗓 Programar disparo' : '🚀 Iniciar disparo'); }
+
+function instLabel(i) { return (i.phone || i.name) + (i.is_default ? ' · padrão' : ''); }
+function instSelect(obj) {
+  if (!INSTANCES.length) return '<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">Nenhum número conectado — conecte em Configurações</div>';
+  const cur = obj === 'SINGLE' ? SINGLE.instanceId : MASS.instanceId;
+  return `<select onchange="${obj}.instanceId=this.value">
+    ${INSTANCES.map(i => `<option value="${i.id}" ${cur === i.id ? 'selected' : ''}>${esc(instLabel(i))}</option>`).join('')}
+  </select>`;
+}
+
 function renderMsgs() {
-  const sc = MSG.stageCounts || {};
   document.getElementById('msgs').innerHTML = `
+  <div class="seg" style="margin-bottom:18px">
+    <button class="${MSGTAB === 'single' ? 'on' : ''}" onclick="msgTab('single')">✉️ Mensagem avulsa</button>
+    <button class="${MSGTAB === 'mass' ? 'on' : ''}" onclick="msgTab('mass')">🚀 Disparo em massa</button>
+  </div>
   <div class="compose">
     <div>
-      <div class="card-box" style="margin-bottom:16px">
-        <h4>Destinatários</h4>
-        <div class="desc">Para quem enviar essa mensagem.</div>
-        <div class="seg" id="segTarget" style="margin-bottom:12px">
-          <button class="${MSG.target === 'numero' ? 'on' : ''}" onclick="setTarget('numero')">Número avulso</button>
-          <button class="${MSG.target === 'stage' ? 'on' : ''}" onclick="setTarget('stage')">Por etapa</button>
-          <button class="${MSG.target === 'todos' ? 'on' : ''}" onclick="setTarget('todos')">Todos os leads</button>
-          <button class="${MSG.target === 'planilha' ? 'on' : ''}" onclick="setTarget('planilha')">📄 Planilha</button>
-        </div>
-        <div id="targetBody">${targetBody()}</div>
-      </div>
-      <div class="card-box" style="margin-bottom:16px">
-        <h4>Agendamento</h4>
-        <div class="desc">Envie agora ou programe data e hora. Disparos programados e por planilha saem em lotes automáticos (anti-bloqueio).</div>
-        <div class="seg" id="segSched" style="margin-bottom:10px">
-          <button class="${MSG.schedule === 'now' ? 'on' : ''}" onclick="setSchedule('now')">Enviar agora</button>
-          <button class="${MSG.schedule === 'later' ? 'on' : ''}" onclick="setSchedule('later')">🗓 Programar</button>
-        </div>
-        <div id="schedBody">${MSG.schedule === 'later' ? `<input type="datetime-local" id="msgWhen" value="${MSG.when}" onchange="MSG.when=this.value" style="max-width:230px">` : ''}</div>
-      </div>
-      <div class="card-box">
-        <h4>Mensagem</h4>
-        <div class="desc">Texto, imagem e até 3 botões.</div>
-        <div class="field"><label>Texto</label><textarea id="msgText" rows="5" placeholder="Escreva sua mensagem... (use *negrito* do WhatsApp)" oninput="renderMsgPreview()"></textarea></div>
-        <div class="field"><label>Imagem (opcional)</label>
-          <div class="btn-row">
-            ${MSG.image ? `<img class="img-thumb" src="${MSG.image}"><button class="btn sm red" onclick="clearImg()">Remover</button>` : `
-            <label class="btn sm ghost" style="display:inline-flex">Enviar arquivo<input type="file" accept="image/*" class="hidden" onchange="onImgFile(this)"></label>
-            <span style="color:var(--faint);font-size:12px">ou cole uma URL abaixo</span>`}
-          </div>
-          ${MSG.image ? '' : `<input id="msgImgUrl" placeholder="https://.../imagem.jpg" oninput="onImgUrl(this.value)">`}
-        </div>
-        <div class="field"><label>Botões (resposta rápida) — máx. 3</label>
-          <div id="btnList">${btnList()}</div>
-          ${MSG.buttons.length < 3 ? `<button class="btn sm ghost" style="margin-top:8px" onclick="addBtn()">+ Adicionar botão</button>` : ''}
-        </div>
-        <div class="field"><label>Rodapé (opcional)</label><input id="msgFooter" placeholder="Ex.: HyperFlick • IPTV" oninput="renderMsgPreview()"></div>
-        <button class="btn" id="msgSend" onclick="dispatchMsg()" style="width:100%;margin-top:6px">${MSG.schedule === 'later' ? '🗓 Programar disparo' : 'Disparar mensagem'}</button>
-        <div id="msgResult" style="margin-top:12px"></div>
-      </div>
+      ${MSGTAB === 'single' ? singleCards() : massCards()}
+      ${composerCard()}
+      <button class="btn" id="msgSend" onclick="dispatchMsg()" style="width:100%;margin-top:6px">${sendLabel()}</button>
+      <div id="msgResult" style="margin-top:12px"></div>
     </div>
     <div>
       <div class="section-h">Pré-visualização</div>
       <div class="wa-preview"><div class="wa-bubble" id="waBubble"></div></div>
     </div>
   </div>
-  <div class="section-h" style="margin-top:24px">📤 Disparos em massa programados</div>
-  <div id="bcastList">${bcastListHtml()}</div>`;
+  ${MSGTAB === 'mass' ? `<div class="section-h" style="margin-top:24px">📋 Fila de disparos</div><div id="bcastList">${bcastListHtml()}</div>` : ''}`;
   renderMsgPreview();
 }
-function targetBody() {
+
+/* ----- cartões: mensagem avulsa ----- */
+function singleCards() {
+  return `
+  <div class="card-box" style="margin-bottom:16px">
+    <h4>Destinatário</h4>
+    <div class="desc">Envio único, na hora, pelo número que você escolher.</div>
+    <div class="field"><label>WhatsApp (com DDD)</label><input inputmode="numeric" placeholder="11999998888" value="${esc(SINGLE.number || '')}" oninput="SINGLE.number=this.value"></div>
+    <div class="field" style="margin-bottom:0"><label>Enviar pelo número</label>${instSelect('SINGLE')}</div>
+  </div>`;
+}
+
+/* ----- cartões: disparo em massa (passo a passo) ----- */
+function massCards() {
+  return `
+  <div class="card-box" style="margin-bottom:16px">
+    <h4>1 · Destinatários</h4>
+    <div class="desc">De onde vêm os números deste disparo.</div>
+    <div class="seg" style="margin-bottom:12px">
+      <button class="${MASS.target === 'planilha' ? 'on' : ''}" onclick="setMassTarget('planilha')">📄 Planilha</button>
+      <button class="${MASS.target === 'stage' ? 'on' : ''}" onclick="setMassTarget('stage')">Por etapa</button>
+      <button class="${MASS.target === 'todos' ? 'on' : ''}" onclick="setMassTarget('todos')">Todos os leads</button>
+    </div>
+    ${massTargetBody()}
+  </div>
+  <div class="card-box" style="margin-bottom:16px">
+    <h4>2 · Número que dispara</h4>
+    <div class="desc">Qual WhatsApp conectado envia as mensagens. Dica: use um chip separado só pra disparo.</div>
+    ${instSelect('MASS')}
+  </div>
+  <div class="card-box" style="margin-bottom:16px">
+    <h4>3 · Velocidade (anti-bloqueio)</h4>
+    <div class="desc">Intervalo <b>aleatório</b> entre cada mensagem, sorteado a cada envio. Quanto maior, mais seguro pro seu número.</div>
+    <div class="row" style="max-width:340px">
+      <div class="field" style="margin:0"><label>Mínimo (segundos)</label><input type="number" min="5" value="${MASS.delayMin}" oninput="MASS.delayMin=this.value;updEta()"></div>
+      <div class="field" style="margin:0"><label>Máximo (segundos)</label><input type="number" min="5" value="${MASS.delayMax}" oninput="MASS.delayMax=this.value;updEta()"></div>
+    </div>
+    <p id="massEta" style="color:var(--muted);font-size:12.5px;margin-top:10px;font-weight:600">${etaText()}</p>
+  </div>
+  <div class="card-box" style="margin-bottom:16px">
+    <h4>4 · Quando enviar</h4>
+    <div class="seg" style="margin:8px 0 10px">
+      <button class="${MASS.schedule === 'now' ? 'on' : ''}" onclick="setMassSchedule('now')">Começar agora</button>
+      <button class="${MASS.schedule === 'later' ? 'on' : ''}" onclick="setMassSchedule('later')">🗓 Programar</button>
+    </div>
+    ${MASS.schedule === 'later'
+      ? `<input type="datetime-local" value="${MASS.when}" onchange="MASS.when=this.value" style="max-width:230px">`
+      : '<p style="color:var(--muted);font-size:12.5px">A primeira mensagem sai na hora; as demais seguem o intervalo sorteado.</p>'}
+  </div>`;
+}
+function massTargetBody() {
   const sc = MSG.stageCounts || {};
-  if (MSG.target === 'numero') return `<input id="tgNumber" placeholder="WhatsApp com DDD (ex.: 11999998888)">`;
-  if (MSG.target === 'stage') return `<select id="tgStage">${STAGES.map(s => `<option value="${s.id}">${s.label} (${sc[s.id] || 0})</option>`).join('')}</select>`;
-  if (MSG.target === 'planilha') {
-    const sh = MSG.sheet;
+  if (MASS.target === 'planilha') {
+    const sh = MASS.sheet;
     return `
       <div class="btn-row" style="margin-bottom:0">
         <label class="btn sm ghost" style="display:inline-flex">📄 Subir planilha<input type="file" accept=".csv,.txt,.xlsx,.xls" class="hidden" onchange="onSheetFile(this)"></label>
-        ${sh.recipients.length ? `<span class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${sh.recipients.length} número(s) válidos</span>` : '<span style="color:var(--faint);font-size:12px">CSV, TXT ou Excel (.xlsx)</span>'}
+        ${sh.recipients.length ? `<span class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${sh.recipients.length} número(s)</span>` : '<span style="color:var(--faint);font-size:12px">CSV, TXT ou Excel (.xlsx)</span>'}
         ${sh.invalid ? `<span class="chip" style="color:var(--yellow);border-color:var(--yellow-bg);background:var(--yellow-bg)">${sh.invalid} ignorado(s)</span>` : ''}
       </div>
-      <p style="color:var(--muted);font-size:12px;margin-top:8px">Coluna com o telefone (DDD + número) e, opcionalmente, uma coluna com o nome — use <b>{nome}</b> no texto pra personalizar. ${sh.fileName ? `Arquivo: <b>${esc(sh.fileName)}</b>` : ''}</p>`;
+      <p style="color:var(--muted);font-size:12px;margin-top:8px">Coluna com o telefone (DDD + número) e, opcional, coluna com o nome — use <b>{nome}</b> no texto pra personalizar. ${sh.fileName ? `Arquivo: <b>${esc(sh.fileName)}</b>` : ''}</p>`;
   }
-  return `<div class="chip">Enviar para todos os ${MSG.total || 0} leads com WhatsApp</div>`;
+  if (MASS.target === 'stage') return `<select onchange="MASS.stage=this.value;updEta()">${STAGES.map(s => `<option value="${s.id}" ${MASS.stage === s.id ? 'selected' : ''}>${s.label} (${sc[s.id] || 0})</option>`).join('')}</select>`;
+  return `<div class="chip">Todos os ${MSG.total || 0} leads do CRM com WhatsApp</div>`;
 }
-function setTarget(t) { MSG.target = t; document.querySelectorAll('#segTarget button').forEach(b => b.classList.remove('on')); event.target.classList.add('on'); document.getElementById('targetBody').innerHTML = targetBody(); }
-function setSchedule(s) {
-  MSG.schedule = s;
-  document.querySelectorAll('#segSched button').forEach(b => b.classList.remove('on')); event.target.classList.add('on');
-  document.getElementById('schedBody').innerHTML = s === 'later' ? `<input type="datetime-local" id="msgWhen" value="${MSG.when}" onchange="MSG.when=this.value" style="max-width:230px">` : '';
-  const btn = document.getElementById('msgSend'); if (btn) btn.textContent = s === 'later' ? '🗓 Programar disparo' : 'Disparar mensagem';
+function massCount() {
+  if (MASS.target === 'planilha') return MASS.sheet.recipients.length;
+  if (MASS.target === 'stage') return (MSG.stageCounts || {})[MASS.stage] || 0;
+  return MSG.total || 0;
+}
+function etaText() {
+  const n = massCount();
+  if (!n) return 'Suba a planilha (ou escolha a etapa) pra ver a duração estimada.';
+  const min = Math.max(5, Number(MASS.delayMin) || 20), max = Math.max(min, Number(MASS.delayMax) || 180);
+  const secs = Math.max(0, n - 1) * ((min + max) / 2);
+  const h = Math.floor(secs / 3600), m = Math.round((secs % 3600) / 60);
+  return `⏱ Duração estimada: ${h ? h + 'h ' : ''}${m}min para ${n} mensagem(ns)`;
+}
+function updEta() { const el = document.getElementById('massEta'); if (el) el.textContent = etaText(); }
+function setMassTarget(t) { MASS.target = t; renderMsgs(); }
+function setMassSchedule(s) { MASS.schedule = s; renderMsgs(); }
+
+/* ----- cartão: mensagem (compartilhado) ----- */
+function composerCard() {
+  return `
+  <div class="card-box">
+    <h4>${MSGTAB === 'mass' ? '5 · ' : ''}Mensagem</h4>
+    <div class="desc">Texto, imagem e até 3 botões de resposta.${MSGTAB === 'mass' ? ' <b>{nome}</b> vira o primeiro nome do destinatário.' : ''}</div>
+    <div class="field"><label>Texto</label><textarea id="msgText" rows="5" placeholder="Escreva sua mensagem... (use *negrito* do WhatsApp)" oninput="MSG.text=this.value;renderMsgPreview()">${esc(MSG.text || '')}</textarea></div>
+    <div class="field"><label>Imagem (opcional)</label>
+      <div class="btn-row">
+        ${MSG.image ? `<img class="img-thumb" src="${MSG.image}"><button class="btn sm red" onclick="clearImg()">Remover</button>` : `
+        <label class="btn sm ghost" style="display:inline-flex">Enviar arquivo<input type="file" accept="image/*" class="hidden" onchange="onImgFile(this)"></label>
+        <span style="color:var(--faint);font-size:12px">ou cole uma URL abaixo</span>`}
+      </div>
+      ${MSG.image ? '' : `<input id="msgImgUrl" placeholder="https://.../imagem.jpg" oninput="onImgUrl(this.value)">`}
+    </div>
+    <div class="field"><label>Botões (resposta rápida) — máx. 3</label>
+      <div id="btnList">${btnList()}</div>
+      ${MSG.buttons.length < 3 ? `<button class="btn sm ghost" style="margin-top:8px" onclick="addBtn()">+ Adicionar botão</button>` : ''}
+    </div>
+    <div class="field"><label>Rodapé (opcional)</label><input id="msgFooter" placeholder="Ex.: HyperFlick • IPTV" value="${esc(MSG.footer || '')}" oninput="MSG.footer=this.value;renderMsgPreview()"></div>
+  </div>`;
+}
+function btnList() {
+  return MSG.buttons.map((b, i) => `<div class="btn-row"><input value="${esc(b.text)}" placeholder="Texto do botão ${i + 1}" oninput="MSG.buttons[${i}].text=this.value;renderMsgPreview()"><button class="btn sm red" onclick="rmBtn(${i})">×</button></div>`).join('') || '';
+}
+function addBtn() { if (MSG.buttons.length >= 3) return; MSG.buttons.push({ text: '' }); renderMsgs(); }
+function rmBtn(i) { MSG.buttons.splice(i, 1); renderMsgs(); }
+function onImgFile(input) { const f = input.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { MSG.image = rd.result; renderMsgs(); }; rd.readAsDataURL(f); }
+function onImgUrl(v) { MSG.image = v.trim(); renderMsgPreview(); }
+function clearImg() { MSG.image = ''; renderMsgs(); }
+function renderMsgPreview() {
+  const el = document.getElementById('waBubble'); if (!el) return;
+  const wa = (s) => esc(s).replace(/\*(.+?)\*/g, '<b>$1</b>').replace(/_(.+?)_/g, '<i>$1</i>');
+  const btns = MSG.buttons.filter(b => b.text.trim());
+  el.innerHTML = `
+    ${MSG.image ? `<img src="${esc(MSG.image)}" onerror="this.style.display='none'">` : ''}
+    <div class="txt">${wa(MSG.text || '') || '<span style="color:#999">Sua mensagem aparece aqui…</span>'}</div>
+    ${MSG.footer ? `<div class="ft">${esc(MSG.footer)}</div>` : ''}
+    ${btns.length ? `<div class="btns">${btns.map(b => `<div class="b">${esc(b.text)}</div>`).join('')}</div>` : ''}`;
 }
 
 /* ----- planilha de números (CSV/TXT nativo, XLSX via SheetJS sob demanda) ----- */
@@ -659,7 +745,6 @@ function rowsToRecipients(rows) {
     if (seen.has(phone)) continue; seen.add(phone);
     recipients.push({ phone, name });
   }
-  // descarta linha de cabeçalho que tenha virado "nome"
   return { recipients, invalid };
 }
 async function onSheetFile(input) {
@@ -678,118 +763,102 @@ async function onSheetFile(input) {
     }
     const { recipients, invalid } = rowsToRecipients(rows);
     if (!recipients.length) { toast('Nenhum número válido encontrado na planilha.'); return; }
-    MSG.sheet = { recipients, invalid, fileName: f.name };
-    document.getElementById('targetBody').innerHTML = targetBody();
+    MASS.sheet = { recipients, invalid, fileName: f.name };
+    renderMsgs();
     toast(`Planilha lida: ${recipients.length} número(s)`);
   } catch (e) { toast('Erro ao ler planilha: ' + e.message); }
 }
 
-/* ----- lista de disparos programados ----- */
+/* ----- fila de disparos ----- */
 function bcStatusPill(s) {
   const map = { agendado: ['pendente', '🗓 agendado'], enviando: ['pendente', '📤 enviando'], pausado: ['cancelado', '⏸ pausado'], concluido: ['pago', '✓ concluído'], cancelado: ['atrasado', '✕ cancelado'] };
   const [cls, lbl] = map[s] || ['plain', s];
   return `<span class="pill ${cls}">${lbl}</span>`;
 }
 function bcastListHtml() {
-  if (!BCASTS.length) return '<div class="card-box" style="margin-bottom:0"><p style="color:var(--muted);font-size:13px">Nenhum disparo programado ainda. Use o alvo <b>📄 Planilha</b> ou o agendamento acima pra criar o primeiro.</p></div>';
-  return `<div class="card-box" style="margin-bottom:0">${BCASTS.map(b => {
-    const done = (b.sent || 0) + (b.failed || 0);
-    const pct = b.total ? Math.round(done / b.total * 100) : 0;
-    const acts = [];
-    if (b.status === 'agendado' || b.status === 'enviando') acts.push(`<button class="btn sm ghost" onclick="bcAction('${b.id}','pause')">Pausar</button>`);
-    if (b.status === 'pausado') acts.push(`<button class="btn sm green" onclick="bcAction('${b.id}','resume')">Retomar</button>`);
-    if (b.status === 'agendado' || b.status === 'enviando' || b.status === 'pausado') acts.push(`<button class="btn sm red" onclick="bcAction('${b.id}','cancel')">Cancelar</button>`);
-    if (b.status === 'concluido' || b.status === 'cancelado') acts.push(`<button class="btn sm red" onclick="bcDelete('${b.id}')">Excluir</button>`);
-    return `<div class="mini-row" style="gap:14px">
-      <div style="min-width:0;flex:1">
-        <b style="color:var(--ink)">${esc(b.name || 'Disparo')}</b> ${bcStatusPill(b.status)}
-        <div style="color:var(--faint);font-size:11.5px;margin-top:2px">${fmtDT(b.scheduled_at)} · ${b.sent || 0}/${b.total || 0} enviado(s)${b.failed ? ` · ${b.failed} falha(s)` : ''}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><div class="prog"><i style="width:${pct}%"></i></div><span style="font-size:11.5px;color:var(--muted);font-weight:700">${pct}%</span></div>
-      </div>
-      <div style="display:flex;gap:6px;flex:0 0 auto">${acts.join('')}</div>
-    </div>`;
-  }).join('')}</div>`;
+  if (!BCASTS.length) return '<div class="card-box" style="margin-bottom:0"><p style="color:var(--muted);font-size:13px">Nenhum disparo ainda — monte o primeiro nos passos acima. 👆</p></div>';
+  return `<div class="card-box" style="margin-bottom:0">
+    <div style="display:flex;justify-content:flex-end"><button class="btn sm ghost" onclick="refreshBcasts()">↻ Atualizar</button></div>
+    ${BCASTS.map(b => {
+      const done = (b.sent || 0) + (b.failed || 0);
+      const pct = b.total ? Math.round(done / b.total * 100) : 0;
+      const inst = INSTANCES.find(i => i.id === b.instance_id);
+      const remaining = Math.max(0, (b.total || 0) - done);
+      const avgMin = (((Number(b.delay_min_s) || 20) + (Number(b.delay_max_s) || 180)) / 2) / 60;
+      const etaMin = Math.round(remaining * avgMin);
+      const eta = remaining && (b.status === 'enviando' || b.status === 'agendado')
+        ? ` · falta ≈ ${etaMin >= 60 ? Math.floor(etaMin / 60) + 'h ' + (etaMin % 60) + 'min' : etaMin + 'min'}` : '';
+      const acts = [];
+      if (b.status === 'agendado' || b.status === 'enviando') acts.push(`<button class="btn sm ghost" onclick="bcAction('${b.id}','pause')">Pausar</button>`);
+      if (b.status === 'pausado') acts.push(`<button class="btn sm green" onclick="bcAction('${b.id}','resume')">Retomar</button>`);
+      if (b.status === 'agendado' || b.status === 'enviando' || b.status === 'pausado') acts.push(`<button class="btn sm red" onclick="bcAction('${b.id}','cancel')">Cancelar</button>`);
+      if (b.status === 'concluido' || b.status === 'cancelado') acts.push(`<button class="btn sm red" onclick="bcDelete('${b.id}')">Excluir</button>`);
+      return `<div class="mini-row" style="gap:14px">
+        <div style="min-width:0;flex:1">
+          <b style="color:var(--ink)">${esc(b.name || 'Disparo')}</b> ${bcStatusPill(b.status)}
+          <div style="color:var(--faint);font-size:11.5px;margin-top:2px">${fmtDT(b.scheduled_at)} · ${b.sent || 0}/${b.total || 0} enviado(s)${b.failed ? ` · ${b.failed} falha(s)` : ''} · ⏱ ${b.delay_min_s || 20}–${b.delay_max_s || 180}s${inst ? ` · 📱 ${esc(inst.phone || inst.name)}` : ''}${eta}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><div class="prog"><i style="width:${pct}%"></i></div><span style="font-size:11.5px;color:var(--muted);font-weight:700">${pct}%</span></div>
+        </div>
+        <div style="display:flex;gap:6px;flex:0 0 auto">${acts.join('')}</div>
+      </div>`;
+    }).join('')}</div>`;
 }
 async function refreshBcasts() { try { BCASTS = await api('/messages/broadcasts'); const el = document.getElementById('bcastList'); if (el) el.innerHTML = bcastListHtml(); } catch (e) { } }
 async function bcAction(id, act) { try { await api(`/messages/broadcasts/${id}/${act}`, { method: 'POST', body: JSON.stringify({}) }); toast('Disparo atualizado'); refreshBcasts(); } catch (e) { toast('Erro: ' + e.message); } }
 async function bcDelete(id) { if (!confirm('Excluir este disparo do histórico?')) return; try { await api('/messages/broadcasts/' + id, { method: 'DELETE' }); refreshBcasts(); } catch (e) { toast('Erro: ' + e.message); } }
-function btnList() {
-  return MSG.buttons.map((b, i) => `<div class="btn-row"><input value="${esc(b.text)}" placeholder="Texto do botão ${i + 1}" oninput="MSG.buttons[${i}].text=this.value;renderMsgPreview()"><button class="btn sm red" onclick="rmBtn(${i})">×</button></div>`).join('') || '';
-}
-function addBtn() { if (MSG.buttons.length >= 3) return; MSG.buttons.push({ text: '' }); document.getElementById('btnList').innerHTML = btnList(); renderMsgsButtonsArea(); }
-function rmBtn(i) { MSG.buttons.splice(i, 1); document.getElementById('btnList').innerHTML = btnList(); renderMsgsButtonsArea(); renderMsgPreview(); }
-function renderMsgsButtonsArea() { // re-render só a área de botões (para mostrar/ocultar o "+")
-  const wrap = document.getElementById('btnList').parentElement;
-  const addExisting = wrap.querySelector('button.ghost');
-  if (MSG.buttons.length < 3 && !addExisting) { const b = document.createElement('button'); b.className = 'btn sm ghost'; b.style.marginTop = '8px'; b.textContent = '+ Adicionar botão'; b.onclick = addBtn; wrap.appendChild(b); }
-  if (MSG.buttons.length >= 3 && addExisting) addExisting.remove();
-  renderMsgPreview();
-}
-function onImgFile(input) { const f = input.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { MSG.image = rd.result; renderMsgs(); }; rd.readAsDataURL(f); }
-function onImgUrl(v) { MSG.image = v.trim(); renderMsgPreview(); }
-function clearImg() { MSG.image = ''; renderMsgs(); }
-function renderMsgPreview() {
-  const text = document.getElementById('msgText')?.value || '';
-  const footer = document.getElementById('msgFooter')?.value || '';
-  const wa = (s) => esc(s).replace(/\*(.+?)\*/g, '<b>$1</b>').replace(/_(.+?)_/g, '<i>$1</i>');
-  const btns = MSG.buttons.filter(b => b.text.trim());
-  document.getElementById('waBubble').innerHTML = `
-    ${MSG.image ? `<img src="${esc(MSG.image)}" onerror="this.style.display='none'">` : ''}
-    <div class="txt">${wa(text) || '<span style="color:#999">Sua mensagem aparece aqui…</span>'}</div>
-    ${footer ? `<div class="ft">${esc(footer)}</div>` : ''}
-    ${btns.length ? `<div class="btns">${btns.map(b => `<div class="b">${esc(b.text)}</div>`).join('')}</div>` : ''}`;
-}
+
+/* ----- enviar / iniciar / programar ----- */
 async function dispatchMsg() {
-  const text = document.getElementById('msgText').value.trim();
-  const footer = document.getElementById('msgFooter').value.trim();
+  const text = (MSG.text || '').trim();
+  const footer = (MSG.footer || '').trim();
   const buttons = MSG.buttons.filter(b => b.text.trim());
   if (!text && !MSG.image) { toast('Escreva um texto ou anexe uma imagem.'); return; }
 
-  const scheduled = MSG.schedule === 'later';
-  if (scheduled && !MSG.when) { toast('Escolha a data e hora do disparo.'); return; }
-
-  const btn = document.getElementById('msgSend'); btn.disabled = true; btn.textContent = 'Enviando...';
-  const res = document.getElementById('msgResult');
+  const btn = document.getElementById('msgSend'); const res = document.getElementById('msgResult');
+  btn.disabled = true; btn.textContent = 'Enviando...';
   try {
-    // Planilha OU agendamento → vai pra fila de disparos em massa (lotes via cron)
-    if (MSG.target === 'planilha' || scheduled) {
-      let recipients = [];
-      if (MSG.target === 'planilha') {
-        recipients = MSG.sheet.recipients;
-        if (!recipients.length) throw new Error('Suba uma planilha com os números primeiro.');
-      } else if (MSG.target === 'numero') {
-        const n = document.getElementById('tgNumber').value.trim();
-        if (!n) throw new Error('Informe o número.');
-        recipients = [{ phone: n }];
-      } else {
-        const leads = (await api('/leads')).filter(l => l.source !== 'manual');
-        const pick = MSG.target === 'stage' ? leads.filter(l => l.stage === document.getElementById('tgStage').value) : leads;
-        recipients = pick.map(l => ({ phone: l.phone, name: l.name }));
-      }
-      const payload = {
-        name: MSG.target === 'planilha' ? `Planilha ${MSG.sheet.fileName || ''}`.trim() : `Disparo ${MSG.target}`,
-        text, footer, buttons, image: MSG.image || '', recipients,
-        ...(scheduled ? { scheduledAt: new Date(MSG.when).toISOString() } : {}),
-      };
-      const r = await api('/messages/broadcasts', { method: 'POST', body: JSON.stringify(payload) });
-      if (!scheduled) api('/messages/broadcasts/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshBcasts).catch(() => {});
-      res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ Disparo ${scheduled ? 'programado' : 'na fila'} — ${r.total} número(s)${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}</div>`;
-      toast(scheduled ? 'Disparo programado! 🗓' : 'Disparo na fila — enviando em lotes.');
-      MSG.sheet = { recipients: [], invalid: 0, fileName: '' };
-      refreshBcasts();
+    if (MSGTAB === 'single') {
+      const n = (SINGLE.number || '').trim();
+      if (!n) throw new Error('Informe o número.');
+      await api('/messages/send', { method: 'POST', body: JSON.stringify({ text, footer, buttons, image: MSG.image || '', recipients: [{ phone: n }], instanceId: SINGLE.instanceId || undefined }) });
+      res.innerHTML = '<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ Mensagem enviada</div>';
+      toast('Mensagem enviada ✓');
       return;
     }
 
-    // Envio imediato (número avulso / etapa / todos) — caminho original
-    const payload = { text, footer, buttons, image: MSG.image || '' };
-    if (MSG.target === 'numero') { const n = document.getElementById('tgNumber').value.trim(); if (!n) { toast('Informe o número.'); btn.disabled = false; btn.textContent = 'Disparar mensagem'; return; } payload.recipients = [{ phone: n }]; }
-    else if (MSG.target === 'stage') { payload.stage = document.getElementById('tgStage').value; }
-    else { payload.allLeads = true; }
-    const r = await api('/messages/send', { method: 'POST', body: JSON.stringify(payload) });
-    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.sent} enviada(s)${r.failed ? ` · ${r.failed} falha(s)` : ''} de ${r.total}</div>`;
-    toast(`Disparo concluído: ${r.sent}/${r.total}`);
-  } catch (e) { res.innerHTML = `<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">${esc(e.message)}</div>`; }
-  finally { btn.disabled = false; btn.textContent = MSG.schedule === 'later' ? '🗓 Programar disparo' : 'Disparar mensagem'; }
+    // massa → sempre via fila (intervalo aleatório anti-ban)
+    let recipients = [];
+    if (MASS.target === 'planilha') {
+      recipients = MASS.sheet.recipients;
+      if (!recipients.length) throw new Error('Suba uma planilha com os números primeiro.');
+    } else {
+      const leads = (await api('/leads')).filter(l => l.source !== 'manual');
+      const pick = MASS.target === 'stage' ? leads.filter(l => l.stage === MASS.stage) : leads;
+      recipients = pick.map(l => ({ phone: l.phone, name: l.name }));
+      if (!recipients.length) throw new Error('Nenhum lead nesse filtro.');
+    }
+    const scheduled = MASS.schedule === 'later';
+    if (scheduled && !MASS.when) throw new Error('Escolha a data e hora do disparo.');
+
+    const payload = {
+      name: MASS.target === 'planilha' ? `Planilha ${MASS.sheet.fileName || ''}`.trim() : (MASS.target === 'stage' ? `Etapa: ${MASS.stage}` : 'Todos os leads'),
+      text, footer, buttons, image: MSG.image || '',
+      recipients,
+      instanceId: MASS.instanceId || undefined,
+      delayMinS: Number(MASS.delayMin) || 20,
+      delayMaxS: Number(MASS.delayMax) || 180,
+      ...(scheduled ? { scheduledAt: new Date(MASS.when).toISOString() } : {}),
+    };
+    const r = await api('/messages/broadcasts', { method: 'POST', body: JSON.stringify(payload) });
+    // primeira mensagem sai já; o resto segue o sorteio via cron
+    if (!scheduled) api('/messages/broadcasts/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshBcasts).catch(() => {});
+    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${scheduled ? 'Disparo programado' : 'Disparo iniciado'} — ${r.total} número(s)${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}</div>`;
+    toast(scheduled ? 'Disparo programado! 🗓' : 'Disparo iniciado! 🚀');
+    MASS.sheet = { recipients: [], invalid: 0, fileName: '' };
+    refreshBcasts();
+  } catch (e) {
+    res.innerHTML = `<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">${esc(e.message)}</div>`;
+  } finally { btn.disabled = false; btn.textContent = sendLabel(); }
 }
 
 /* ===================== FINANCEIRO ===================== */

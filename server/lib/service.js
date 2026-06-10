@@ -21,9 +21,22 @@ export async function getActiveInstance() {
   return connected.find((i) => i.is_default) || connected[0] || null;
 }
 
+// Resolve a instância de envio: a escolhida (se conectada) ou a padrão.
+// instanceId permite disparar por OUTRO número (ex.: chip só de disparo).
+export async function resolveInstance(instanceId) {
+  if (instanceId) {
+    const { data } = await sb().from('whatsapp_instances').select('*').eq('id', instanceId).maybeSingle();
+    if (data && data.status === 'connected') return data;
+    const e = new Error('A instância escolhida não está conectada.');
+    e.code = 'NO_INSTANCE';
+    throw e;
+  }
+  return getActiveInstance();
+}
+
 // Envia texto e registra na tabela messages. Lança erro se não houver instância conectada.
-export async function sendWhatsApp({ leadId, phone, text }) {
-  const inst = await getActiveInstance();
+export async function sendWhatsApp({ leadId, phone, text, instanceId }) {
+  const inst = await resolveInstance(instanceId);
   if (!inst) {
     const e = new Error('Nenhuma instância WhatsApp conectada.');
     e.code = 'NO_INSTANCE';
@@ -46,14 +59,15 @@ export async function sendWhatsApp({ leadId, phone, text }) {
 }
 
 // Envia mídia (imagem) e opcionalmente botões, registrando na tabela messages.
-// Usa a instância conectada. Lança erro (NO_INSTANCE) se não houver.
+// Usa a instância conectada (ou a escolhida via instanceId). Lança erro (NO_INSTANCE) se não houver.
 // listButton: se informado, envia como LISTA (suporta 4+ opções) em vez de botões.
-export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', buttons = [], footer = '', listButton = '' }) {
-  const inst = await getActiveInstance();
+export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', buttons = [], footer = '', listButton = '', instanceId }) {
+  const inst = await resolveInstance(instanceId);
   if (!inst) { const e = new Error('Nenhuma instância WhatsApp conectada.'); e.code = 'NO_INSTANCE'; throw e; }
   const number = normalizePhone(phone);
   // Converte botões para o formato de choices da uazapi:
-  //  reply: "texto"  ·  copy: "texto|copy:código"  ·  url: "texto|url:link"  ·  call: "texto|call:+num"
+  //  reply: "texto" ou "texto|id"  ·  copy: "texto|copy:código"  ·  url: "texto|url:link"  ·  call: "texto|call:+num"
+  //  string passa direto (permite "[Seção]" e "texto|id|descrição" em listas)
   const choices = (buttons || []).map((b) => {
     if (typeof b === 'string') return b;
     if (!b || !b.text) return null;

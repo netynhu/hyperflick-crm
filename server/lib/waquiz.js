@@ -102,8 +102,10 @@ async function setState(leadId, patch) {
 }
 
 // Pergunta com menu: ≤3 opções vão como botões; 4+ como lista.
+// Formato uazapi: choice "texto|id" — a resposta volta com o id (número da opção),
+// que o matchOption já entende. O corpo também lista numerado (fallback universal).
 async function askMenu(lead, text, opts) {
-  const buttons = opts.map((o) => ({ text: o.label }));
+  const buttons = opts.map((o, i) => `${o.label}|${i + 1}`);
   await sendWhatsAppRich({
     leadId: lead.id, phone: lead.phone,
     text: `${text}\n\n${numbered(opts)}\n\nToque numa opção ou responda com o número 👇`,
@@ -131,14 +133,26 @@ export async function startWaQuiz({ phone, pushName, inboundText = '', inboundId
     catch (e) { console.error('startWaQuiz log:', e.message); }
   }
 
+  await sendWelcome(lead);
+  return lead;
+}
+
+async function sendWelcome(lead) {
   await sendWhatsApp({
-    leadId: lead.id, phone,
+    leadId: lead.id, phone: lead.phone,
     text:
       'Oi! Que bom te ver por aqui 🧡\n\n' +
       'Você acaba de garantir um *teste grátis* da *HyperFlick* — +800 canais, +60 mil filmes e séries, futebol ao vivo, tudo num app só e sem travar. 📺⚽✨\n\n' +
       'Pra eu liberar seu acesso agorinha, me conta:\n\n*Qual é o seu nome?* 😊',
   });
-  return lead;
+}
+
+// Lead JÁ EXISTENTE mandou a frase-gatilho (clicou no anúncio de novo, ou era
+// lead do funil web): reinicia o quiz do zero — exceto cliente GANHO.
+export async function restartWaQuiz(lead) {
+  await sb().from('leads').update({ wa_quiz_state: 'ask_name', quiz: {} }).eq('id', lead.id);
+  await sendWelcome(lead);
+  return { handled: true };
 }
 
 // ---------- Respostas durante o quiz ----------
@@ -150,6 +164,8 @@ export async function handleQuizReply(lead, text) {
 
   try {
     if (state === 'ask_name') {
+      // mandou a frase-gatilho de novo (clicou no anúncio 2x)? repete a saudação
+      if (quizTriggerMatch(text, '')) { await sendWelcome(lead); return { handled: true }; }
       const name = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 60);
       if (name.length < 2 || /^\d+$/.test(name)) {
         await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text: 'Não peguei seu nome 🙈 Pode digitar de novo?' });

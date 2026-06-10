@@ -24,7 +24,7 @@ router.all('/followup', async (req, res) => {
     try { payments = await reconcilePendingPix(); } catch (e) { payments = { error: e.message }; }
     // Disparos em massa agendados: envia um lote por execução.
     let broadcasts = { processed: 0, actions: [] };
-    try { broadcasts = await processBroadcasts({ batch: 8 }); } catch (e) { broadcasts = { error: e.message }; }
+    try { broadcasts = await processBroadcasts(); } catch (e) { broadcasts = { error: e.message }; }
     res.json({ ok: true, followups, billing, payments, broadcasts });
   } catch (e) {
     console.error('cron/followup', e.message);
@@ -38,7 +38,7 @@ router.all('/followup', async (req, res) => {
 router.all('/broadcast', async (req, res) => {
   if (!authed(req)) return res.status(401).json({ error: 'Não autorizado.' });
   try {
-    const r = await processBroadcasts({ batch: 10 });
+    const r = await processBroadcasts();
     res.json({ ok: true, ...r });
   } catch (e) {
     console.error('cron/broadcast', e.message);

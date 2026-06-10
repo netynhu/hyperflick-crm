@@ -195,6 +195,12 @@ create table if not exists broadcasts (
 );
 create index if not exists broadcasts_status_idx on broadcasts (status, scheduled_at);
 
+-- Migração (idempotente): instância que dispara + intervalo aleatório anti-ban
+alter table broadcasts add column if not exists instance_id  uuid;     -- whatsapp_instances.id (null = instância padrão)
+alter table broadcasts add column if not exists delay_min_s  int default 20;
+alter table broadcasts add column if not exists delay_max_s  int default 180;
+alter table broadcasts add column if not exists next_send_at timestamptz;  -- próximo envio permitido (pacing)
+
 drop trigger if exists trg_broadcasts_updated on broadcasts;
 create trigger trg_broadcasts_updated before update on broadcasts
 for each row execute function set_updated_at();

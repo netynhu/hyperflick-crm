@@ -6,7 +6,7 @@ import { logMessage } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
 import { deliverPixToLead, sendMonthlyPix } from '../lib/followup.js';
 import { applyApprovedPayment } from '../lib/billing.js';
-import { getWaQuizSettings, quizTriggerMatch, startWaQuiz, handleQuizReply } from '../lib/waquiz.js';
+import { getWaQuizSettings, quizTriggerMatch, startWaQuiz, restartWaQuiz, handleQuizReply } from '../lib/waquiz.js';
 
 const router = Router();
 
@@ -54,9 +54,16 @@ router.post('/uazapi', async (req, res) => {
         if (lead) {
           await logMessage({ leadId: lead.id, phone, direction: 'in', body: text, messageId });
 
-          // Lead no meio do quiz do WhatsApp → a resposta é consumida pelo quiz.
           let consumed = false;
-          if (lead.wa_quiz_state && lead.wa_quiz_state !== 'done') {
+          const qs = await getWaQuizSettings();
+          // Frase-gatilho do anúncio: (re)inicia o quiz MESMO para lead que já
+          // existe (veio do funil web ou clicou no anúncio de novo). Cliente
+          // GANHO não é re-quizado — segue pro fluxo de compra/cobrança.
+          if (qs.enabled && lead.stage !== 'ganho' && quizTriggerMatch(text, qs.trigger)) {
+            const r = await restartWaQuiz(lead);
+            consumed = r.handled;
+          } else if (lead.wa_quiz_state && lead.wa_quiz_state !== 'done') {
+            // Lead no meio do quiz → a resposta é consumida pelo quiz.
             const r = await handleQuizReply(lead, text);
             consumed = r.handled;
           }

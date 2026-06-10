@@ -52,7 +52,7 @@ router.post('/send', async (req, res) => {
     for (let i = 0; i < recipients.length; i++) {
       const r = recipients[i];
       try {
-        await sendWhatsAppRich({ leadId: r.leadId, phone: r.phone, text, image, buttons, footer });
+        await sendWhatsAppRich({ leadId: r.leadId, phone: r.phone, text, image, buttons, footer, instanceId: b.instanceId || undefined });
         sent++;
       } catch (e) {
         errors.push({ phone: r.phone, name: r.name, error: e.message });
@@ -100,11 +100,19 @@ router.post('/broadcasts', async (req, res) => {
     const scheduledAt = b.scheduledAt ? new Date(b.scheduledAt) : new Date();
     if (Number.isNaN(scheduledAt.getTime())) return res.status(400).json({ error: 'Data de agendamento inválida.' });
 
+    // Intervalo aleatório anti-ban entre mensagens (padrão 20–180s)
+    let delayMin = Math.round(Number(b.delayMinS));
+    let delayMax = Math.round(Number(b.delayMaxS));
+    if (!Number.isFinite(delayMin) || delayMin < 5) delayMin = 20;
+    if (!Number.isFinite(delayMax) || delayMax < delayMin) delayMax = Math.max(180, delayMin);
+
     const { data: bc, error } = await sb().from('broadcasts').insert({
       name: String(b.name || '').trim() || `Disparo ${new Date().toLocaleDateString('pt-BR')}`,
       message_text: text, image, footer, buttons,
       status: 'agendado', scheduled_at: scheduledAt.toISOString(),
       total: recipients.length, sent: 0, failed: 0,
+      instance_id: b.instanceId || null,
+      delay_min_s: delayMin, delay_max_s: delayMax,
     }).select().single();
     if (error) throw error;
 
@@ -169,11 +177,11 @@ router.delete('/broadcasts/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Processa um lote AGORA (o painel chama após criar um disparo imediato;
-// o restante da fila segue pelo cron).
+// Processa a fila AGORA (o painel chama após criar um disparo imediato —
+// manda a 1ª mensagem na hora; o restante segue o pacing pelo cron).
 router.post('/broadcasts/process', async (_req, res) => {
   try {
-    const r = await processBroadcasts({ batch: 8 });
+    const r = await processBroadcasts();
     res.json({ ok: true, ...r });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

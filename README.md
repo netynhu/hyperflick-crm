@@ -142,16 +142,21 @@ qualifica por botões/listas: nome → como assiste hoje → aparelho → marca 
 - Rode de novo o `supabase/schema.sql` (cria a coluna `leads.wa_quiz_state`).
 - Mensagens avulsas de números desconhecidos continuam **fora** do CRM.
 
-## Disparos em massa (planilha + agendamento)
+## Disparos em massa (planilha + agendamento + anti-ban)
 
-Em **CRM → Mensagens**, escolha o alvo **📄 Planilha** (CSV, TXT ou Excel com telefones e,
-opcionalmente, nomes — use `{nome}` no texto) e/ou **🗓 Programar** com data e hora.
-O disparo entra numa fila (`broadcasts`) processada **em lotes** pelo cron, com pausa entre
-envios (anti-bloqueio). A lista na própria aba mostra progresso e permite pausar/retomar/cancelar.
+Em **CRM → Mensagens → 🚀 Disparo em massa**, monte o disparo em 5 passos:
+**1) Destinatários** (planilha CSV/TXT/Excel, por etapa ou todos os leads — `{nome}` personaliza),
+**2) Número que dispara** (qualquer instância conectada — dica: chip separado pra disparo),
+**3) Velocidade**: intervalo **aleatório** entre mensagens (padrão **20–180s**, sorteado a cada
+envio — nunca dispara mais rápido que isso), **4) Quando** (agora ou agendado) e **5) Mensagem**.
+A fila mostra progresso, ETA e permite pausar/retomar/cancelar.
 
-- Rode de novo o `supabase/schema.sql` (cria `broadcasts` e `broadcast_recipients`).
-- O `/api/cron/followup` já processa um lote por execução. Para filas grandes, aponte um
-  cron mais frequente (1 min) para `https://SEU-DOMINIO/api/cron/broadcast?token=SEU_CRON_SECRET`.
+- Rode de novo o `supabase/schema.sql` (cria `broadcasts`, `broadcast_recipients` e as colunas
+  `instance_id` / `delay_min_s` / `delay_max_s` / `next_send_at`).
+- **Importante:** aponte um cron de **1 minuto** para
+  `https://SEU-DOMINIO/api/cron/broadcast?token=SEU_CRON_SECRET` — cada chamada envia no máximo
+  1 mensagem por disparo e respeita o intervalo sorteado (espaçamento real = max(cron, sorteio)).
+  O `/api/cron/followup` também processa a fila, mas a 15 min o disparo fica lento.
 
 ## Estrutura
 
