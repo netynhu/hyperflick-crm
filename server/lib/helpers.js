@@ -14,6 +14,20 @@ export function normalizePhone(raw) {
   return d;
 }
 
+// Variantes de um celular BR: com e sem o nono dígito. O JID do WhatsApp pode
+// vir sem o 9 (ex.: 556299590736) enquanto o lead foi salvo com ele
+// (5562999590736) — ao buscar o lead pelo telefone, use as duas formas.
+export function phoneVariants(raw) {
+  const p = normalizePhone(raw);
+  const out = new Set(p ? [p] : []);
+  if (p.startsWith('55')) {
+    const rest = p.slice(2); // DDD + número
+    if (rest.length === 11 && rest[2] === '9') out.add('55' + rest.slice(0, 2) + rest.slice(3));
+    if (rest.length === 10) out.add('55' + rest.slice(0, 2) + '9' + rest.slice(2));
+  }
+  return [...out];
+}
+
 // Gera credenciais de teste (placeholder — troque pela API do seu painel IPTV).
 export function genTestCredentials() {
   const rnd = (n) =>

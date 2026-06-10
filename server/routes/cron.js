@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { config } from '../config.js';
 import { runFollowups, runBilling } from '../lib/followup.js';
+import { reconcilePendingPix } from '../lib/billing.js';
 
 const router = Router();
 
@@ -16,7 +17,11 @@ router.all('/followup', async (req, res) => {
   try {
     const followups = await runFollowups();
     const billing = await runBilling();
-    res.json({ ok: true, followups, billing });
+    // Conciliação: Pix gerados e ainda pendentes → consulta o Mercado Pago.
+    // Se o pagamento aprovou e o webhook do MP não chegou, renova aqui mesmo.
+    let payments = { checked: 0, actions: [] };
+    try { payments = await reconcilePendingPix(); } catch (e) { payments = { error: e.message }; }
+    res.json({ ok: true, followups, billing, payments });
   } catch (e) {
     console.error('cron/followup', e.message);
     res.status(500).json({ error: e.message });
