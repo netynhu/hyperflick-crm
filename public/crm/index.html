@@ -366,6 +366,8 @@ const STAGES = [
   { id: 'followup', label: 'Follow-up', color: '#b7791f' },
 ];
 let LEADS = [];
+const TAGS = { trafego_pago: ['🟢 Tráfego pago', '#0f9d58'], disparo: ['🟠 Disparo', '#f5611e'], whatsapp: ['💬 WhatsApp', '#7c5cff'] };
+function tagBadge(tag) { const t = TAGS[tag]; return t ? `<span class="tag" style="background:${t[1]}1a;color:${t[1]}">${t[0]}</span>` : ''; }
 async function loadKanban() { LEADS = (await api('/leads')).filter(l => l.source !== 'manual'); renderBoard(); }
 function dealValue(l) { return planPrice(l.plan); }
 function renderBoard() {
@@ -387,6 +389,7 @@ function renderBoard() {
         return `<div class="lead-card" draggable="true" ondragstart="dragLead(event,'${l.id}')" onclick="openLead('${l.id}')">
           <div class="nm">${esc(l.name)}</div>
           <div class="ph"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>${esc(l.phone)}</div>
+          ${l.tag ? `<div style="margin-top:7px">${tagBadge(l.tag)}</div>` : ''}
           <div class="foot"><span class="dv">${money(dealValue(l))}</span><span>${l.plan ? `<span class="tag plain">${esc(l.plan)}</span>` : ''}${exp}</span></div>
         </div>`;
       }).join('') || '<div style="color:var(--faint);font-size:12px;text-align:center;padding:14px 0">Vazio</div>'}
@@ -437,6 +440,7 @@ async function openLead(id) {
       <button class="x" onclick="closeDrawer()">×</button>
       <h3>${esc(l.name)}</h3>
       <div class="sub">${esc(l.phone)} · ${esc(l.plan || 'sem plano')} · ${esc(l.stage)}${l.app ? ' · ' + esc(l.app) : ''}</div>
+      ${l.tag ? `<div style="margin-top:8px">${tagBadge(l.tag)}</div>` : ''}
       ${l.test_username ? `<div class="field"><label>Acesso de teste</label>
         <div class="inst" style="flex-direction:column;align-items:flex-start;gap:5px">
           <span>Usuário: <b>${esc(l.test_username)}</b></span>
@@ -1098,6 +1102,7 @@ async function loadConfig() {
   const adminPhone = cfg.settings?.admin_phone?.phone || '';
   const wq = cfg.settings?.wa_quiz || {};
   const wqEnabled = wq.enabled !== false;
+  const wqDispatch = wq.dispatchStartsQuiz !== false;
   const wqTrigger = wq.trigger || 'Quero meu teste grátis da HyperFlick! 🧡';
   const connected = list.find(i => i.status === 'connected');
   const waLink = connected?.phone ? `https://wa.me/${String(connected.phone).replace(/\D/g, '')}?text=${encodeURIComponent(wqTrigger)}` : '';
@@ -1109,15 +1114,24 @@ async function loadConfig() {
       <button class="btn" style="margin-top:8px" onclick="newInst()">Nova instância</button>
     </div>
     <div class="card-box">
-      <h4>🤖 Quiz no WhatsApp (tráfego pago)</h4>
-      <div class="desc">Quando um número novo manda a frase-gatilho, o robô cria o lead e qualifica com botões: nome → como assiste → aparelho → app ideal → gera o teste → oferece os planos.</div>
-      <div class="field" style="margin-top:4px"><label><input type="checkbox" id="wqEnabled" ${wqEnabled ? 'checked' : ''} style="width:auto;margin-right:8px;vertical-align:-2px">Quiz ativo (números desconhecidos com a frase-gatilho entram no funil)</label></div>
-      <div class="field"><label>Frase-gatilho (texto que o anúncio pré-preenche no WhatsApp)</label>
-        <input id="wqTrigger" value="${esc(wqTrigger)}">
+      <h4>🤖 Quiz no WhatsApp</h4>
+      <div class="desc">O robô qualifica por botões: <b>onde vai assistir → aparelho → app ideal → gera o teste</b>. Quando o cliente quer assinar, mostra os planos e gera o Pix; o nome é pedido só depois da compra paga.</div>
+      <div class="field" style="margin-top:4px"><label><input type="checkbox" id="wqEnabled" ${wqEnabled ? 'checked' : ''} style="width:auto;margin-right:8px;vertical-align:-2px"><b>Quiz ativo</b></label></div>
+
+      <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px;margin:10px 0">
+        <div style="font-weight:700;font-size:13px;color:var(--ink);margin-bottom:8px">🟢 Tráfego pago <span class="tag plain">etiqueta: tráfego pago</span></div>
+        <div class="field" style="margin:0 0 8px"><label>Frase-gatilho (o anúncio abre o WhatsApp com ela pronta)</label>
+          <input id="wqTrigger" value="${esc(wqTrigger)}">
+        </div>
+        ${waLink ? `<label style="font-size:12px;color:var(--muted);font-weight:600">Link pro anúncio (wa.me com a frase)</label>
+          <div class="row" style="margin-top:6px"><input id="wqLink" value="${esc(waLink)}" readonly style="color:var(--muted)"><button class="btn sm ghost" style="flex:0 0 auto" onclick="navigator.clipboard.writeText(document.getElementById('wqLink').value);toast('Link copiado!')">Copiar</button></div>`
+          : '<p style="color:var(--yellow);font-size:12.5px">Conecte uma instância pra gerar o link do anúncio.</p>'}
       </div>
-      ${waLink ? `<div class="field"><label>Link pro seu anúncio (wa.me com a frase pronta)</label>
-        <div class="row"><input id="wqLink" value="${esc(waLink)}" readonly style="color:var(--muted)"><button class="btn sm ghost" style="flex:0 0 auto" onclick="navigator.clipboard.writeText(document.getElementById('wqLink').value);toast('Link copiado!')">Copiar</button></div>
-      </div>` : '<p style="color:var(--yellow);font-size:12.5px">Conecte uma instância do WhatsApp pra gerar o link do anúncio.</p>'}
+
+      <div style="background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="font-weight:700;font-size:13px;color:var(--ink);margin-bottom:8px">🟠 Disparo em massa <span class="tag plain">etiqueta: disparo</span></div>
+        <div class="field" style="margin:0"><label><input type="checkbox" id="wqDispatch" ${wqDispatch ? 'checked' : ''} style="width:auto;margin-right:8px;vertical-align:-2px">Quando um lead de disparo <b>responder</b>, inicia o quiz automaticamente</label></div>
+      </div>
       <button class="btn" onclick="saveWaQuiz()">Salvar quiz</button>
     </div>
     <div class="card-box">
@@ -1131,6 +1145,7 @@ async function saveWaQuiz() {
   const value = {
     enabled: document.getElementById('wqEnabled').checked,
     trigger: document.getElementById('wqTrigger').value.trim(),
+    dispatchStartsQuiz: document.getElementById('wqDispatch').checked,
   };
   try { await api('/settings/wa_quiz', { method: 'PUT', body: JSON.stringify({ value }) }); toast('Quiz do WhatsApp salvo'); loadConfig(); }
   catch (e) { toast('Erro: ' + e.message); }

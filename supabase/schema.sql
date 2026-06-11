@@ -54,8 +54,13 @@ alter table leads add column if not exists test_package    text;
 alter table leads add column if not exists pay_url         text;
 alter table leads add column if not exists test_created_at timestamptz;
 -- Quiz de qualificação dentro do WhatsApp (tráfego pago → wa.me → quiz por botões)
--- estados: ask_name | ask_situacao | ask_device | ask_brand | ask_mobile | generating | ask_plan | done
+-- estados: ask_device | ask_brand | ask_mobile | generating | browsing | ask_plan | await_payment | post_sale_name | done
 alter table leads add column if not exists wa_quiz_state   text;
+-- Etiqueta de origem do lead: 'trafego_pago' (veio do anúncio) | 'disparo' (disparo em massa)
+alter table leads add column if not exists tag             text;
+-- Nome confirmado pelo próprio cliente? Quiz pede o nome só DEPOIS da compra paga.
+-- Default true para não pedir nome a leads antigos/manuais; quiz cria com false.
+alter table leads add column if not exists name_confirmed  boolean default true;
 
 -- ============================================================
 -- PAYMENTS  (cobranças / financeiro — quem pagou, quem não)

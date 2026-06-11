@@ -6,6 +6,7 @@ import { sb } from '../supabase.js';
 import { planMonths } from './helpers.js';
 import { getPayment } from './mercadopago.js';
 import { sendWhatsApp, notifyAdmin, buildSaleAlert, addPaidAppExpenseIfNeeded } from './service.js';
+import { askNameAfterSale } from './waquiz.js';
 
 export async function applyApprovedPayment({ payment, leadId: leadIdHint }) {
   const leadId = payment?.lead_id || leadIdHint;
@@ -39,19 +40,22 @@ export async function applyApprovedPayment({ payment, leadId: leadIdHint }) {
   }
   if (leadId) {
     await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);
-    const { data: lead } = await sb().from('leads').select('name,phone,test_username,app').eq('id', leadId).maybeSingle();
+    const { data: lead } = await sb().from('leads')
+      .select('id,name,phone,test_username,app,source,tag,name_confirmed').eq('id', leadId).maybeSingle();
     if (lead) {
       // 6 meses+ com app pago → lança o custo do app (R$ 20) nas despesas
       await addPaidAppExpenseIfNeeded({ lead, plan: payment?.plan });
       const nome = (lead.name || '').split(' ')[0];
       try {
-        await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado, ${nome}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
+        await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado${nome && lead.name_confirmed ? ', ' + nome : ''}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
       } catch (e) { /* ignore */ }
       // avisa o admin da venda (com o usuário de acesso, pra renovar no painel)
       await notifyAdmin(buildSaleAlert({
         name: lead.name, username: lead.test_username,
         plan: payment?.plan, amount: payment?.amount, method: 'Pix',
       }));
+      // Quiz do WhatsApp: agora que a compra foi concluída, pede o nome do cliente (1x).
+      try { await askNameAfterSale(lead); } catch (e) { console.error('askNameAfterSale', e.message); }
     }
   }
   return { ok: true };

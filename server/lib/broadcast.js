@@ -6,8 +6,25 @@
 // sorteia o próximo horário — nunca dispara mais rápido que o sorteio, mesmo
 // que o cron rode a cada minuto. (espaçamento real = max(intervalo do cron, sorteio))
 import { sb } from '../supabase.js';
-import { phoneVariants } from './helpers.js';
-import { sendWhatsAppRich } from './service.js';
+import { phoneVariants, normalizePhone } from './helpers.js';
+import { sendWhatsAppRich, insertLeadSafe } from './service.js';
+
+// Garante um lead para o número disparado: reusa o existente ou cria com a
+// etiqueta "disparo" na etapa Lead (todo cliente disparado vira lead). Mantém o
+// histórico de conversa no CRM e permite o quiz quando ele responder.
+async function ensureLeadForBroadcast(phone, name) {
+  const { data: existing } = await sb().from('leads').select('id')
+    .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
+  if (existing) return existing.id;
+  const { data, error } = await insertLeadSafe({
+    name: name || 'Cliente', phone: normalizePhone(phone), stage: 'lead',
+    source: 'disparo', tag: 'disparo', name_confirmed: !!name,
+  }, 'id');
+  if (!error && data) return data.id;
+  // corrida na unique(phone) ou outro erro: re-busca
+  const { data: again } = await sb().from('leads').select('id').in('phone', phoneVariants(phone)).limit(1).maybeSingle();
+  return again?.id || null;
+}
 
 const randDelayMs = (bc) => {
   const min = Math.max(5, Number(bc.delay_min_s) || 20);
@@ -56,13 +73,12 @@ export async function processBroadcasts() {
     const buttons = Array.isArray(bc.buttons) ? bc.buttons : [];
     let outcome;
     try {
-      // vincula a um lead existente (mantém o histórico de conversa no CRM)
-      const { data: lead } = await sb().from('leads').select('id')
-        .in('phone', phoneVariants(r.phone)).limit(1).maybeSingle();
+      // todo número disparado vira lead (etiqueta "disparo") e guarda o histórico
+      const leadId = await ensureLeadForBroadcast(r.phone, r.name);
       // {nome} → primeiro nome da planilha (se houver)
       const text = String(bc.message_text || '').replaceAll('{nome}', (r.name || '').split(' ')[0] || '');
       await sendWhatsAppRich({
-        leadId: lead?.id || null, phone: r.phone,
+        leadId, phone: r.phone,
         text, image: bc.image || '', buttons, footer: bc.footer || '',
         instanceId: bc.instance_id || undefined,
       });

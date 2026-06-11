@@ -69,6 +69,13 @@ export function renderTemplate(tpl, vars) {
   );
 }
 
+// Detecta intenção de compra na mensagem do cliente (clicou num botão de compra
+// ou digitou algo demonstrando desejo de assinar). Compartilhado pelo webhook e quiz.
+export function isBuyIntent(t) {
+  const s = (t || '').toLowerCase();
+  return /(quero comprar|comprar|quero assinar|assinar|assinatura|quero pagar|pagar|como pago|como assino|como fa[çc]o pra assinar|adquirir|renovar|me manda o pix|manda o pix|quero o pix|quero pix|gerar pix|quero o plano|quero plano|ver planos|quanto custa|pre[çc]o|valor|vou querer|quero sim|fechar|contratar)/.test(s);
+}
+
 export function formatDateTimeBR(date) {
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',

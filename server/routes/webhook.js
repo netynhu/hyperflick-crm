@@ -1,20 +1,14 @@
 import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { hasSupabase } from '../supabase.js';
-import { normalizePhone, phoneVariants } from '../lib/helpers.js';
+import { normalizePhone, phoneVariants, isBuyIntent } from '../lib/helpers.js';
 import { logMessage } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
-import { deliverPixToLead, sendMonthlyPix } from '../lib/followup.js';
+import { sendMonthlyPix } from '../lib/followup.js';
 import { applyApprovedPayment } from '../lib/billing.js';
-import { getWaQuizSettings, quizTriggerMatch, startWaQuiz, restartWaQuiz, handleQuizReply } from '../lib/waquiz.js';
+import { getWaQuizSettings, quizTriggerMatch, isQuizActive, startWaQuiz, enterQuiz, offerPlans, handleQuizReply } from '../lib/waquiz.js';
 
 const router = Router();
-
-// Detecta intenção de compra na mensagem do cliente
-function isBuyIntent(t) {
-  const s = (t || '').toLowerCase();
-  return /(quero comprar|comprar|quero assinar|assinar|assinatura|quero pagar|pagar|como pago|como assino|como faço pra assinar|adquirir|renovar|me manda o pix|manda o pix|quero o pix|quero pix|gerar pix|quero o plano|vou querer|quero sim|fechar)/.test(s);
-}
 
 // Extrai telefone + texto de forma tolerante (o payload da uazapi pode variar)
 function parseInbound(body) {
@@ -51,42 +45,32 @@ router.post('/uazapi', async (req, res) => {
         // nono dígito, enquanto o lead foi salvo com ele (e vice-versa).
         const { data: lead } = await sb().from('leads').select('*')
           .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
+        const qs = await getWaQuizSettings();
         if (lead) {
           await logMessage({ leadId: lead.id, phone, direction: 'in', body: text, messageId });
-
           let consumed = false;
-          const qs = await getWaQuizSettings();
-          // Frase-gatilho do anúncio: (re)inicia o quiz MESMO para lead que já
-          // existe (veio do funil web ou clicou no anúncio de novo). Cliente
-          // GANHO não é re-quizado — segue pro fluxo de compra/cobrança.
-          if (qs.enabled && lead.stage !== 'ganho' && quizTriggerMatch(text, qs.trigger)) {
-            const r = await restartWaQuiz(lead);
-            consumed = r.handled;
-          } else if (lead.wa_quiz_state && lead.wa_quiz_state !== 'done') {
-            // Lead no meio do quiz → a resposta é consumida pelo quiz.
-            const r = await handleQuizReply(lead, text);
-            consumed = r.handled;
-          }
+          const buy = isBuyIntent(text);
 
-          // Gatilho de compra: cliente demonstrou intenção (ou clicou "Quero pagar agora")
-          if (!consumed && isBuyIntent(text)) {
-          try {
-            if (lead.stage === 'ganho') {
-              // cliente existente: clicou no botão da cobrança mensal → manda o Pix da cobrança em aberto
-              await sendMonthlyPix(lead);
-            } else {
-              const nome = (lead.name || '').split(' ')[0];
-              await deliverPixToLead(lead, `${nome}, show! 🧡 Bora liberar seu acesso completo da HyperFlick. Aqui está seu Pix:`);
-              if (lead.stage === 'lead' || lead.stage === 'testando') {
-                await sb().from('leads').update({ stage: 'followup' }).eq('id', lead.id);
-              }
-            }
-          } catch (e) { console.error('buy-intent pix', e.message); }
+          if (lead.stage === 'ganho') {
+            // Cliente ativo: clicou "Quero pagar agora" da cobrança mensal → manda o Pix em aberto.
+            if (buy) { try { await sendMonthlyPix(lead); } catch (e) { console.error('monthly pix', e.message); } consumed = true; }
+          } else if (qs.enabled && quizTriggerMatch(text, qs.trigger)) {
+            // Frase-gatilho de novo (anúncio/funil web) → (re)inicia o quiz.
+            consumed = (await enterQuiz(lead)).handled;
+          } else if (isQuizActive(lead.wa_quiz_state)) {
+            // No meio do quiz → a resposta é consumida pelo fluxo.
+            consumed = (await handleQuizReply(lead, text)).handled;
+          } else if (qs.enabled && buy) {
+            // Lead fora do quiz (ex.: disparo concluído) demonstrou compra → mostra os planos.
+            consumed = (await offerPlans(lead)).handled;
+          } else if (qs.enabled && qs.dispatchStartsQuiz && lead.tag === 'disparo' && !lead.wa_quiz_state) {
+            // Lead de DISPARO respondeu pela 1ª vez → entra no quiz.
+            consumed = (await enterQuiz(lead)).handled;
           }
+          void consumed;
         } else {
-          // Número DESCONHECIDO: só entra no CRM se a mensagem casar com a
-          // frase-gatilho do quiz (tráfego pago → wa.me). Conversa avulsa segue fora.
-          const qs = await getWaQuizSettings();
+          // Número DESCONHECIDO: só entra no CRM se casar com a frase-gatilho do
+          // quiz (tráfego pago → wa.me). Conversa avulsa segue fora do CRM.
           if (qs.enabled && quizTriggerMatch(text, qs.trigger)) {
             await startWaQuiz({ phone, pushName: name, inboundText: text, inboundId: messageId });
           }

@@ -138,6 +138,19 @@ export async function addPaidAppExpenseIfNeeded({ lead, plan }) {
   } catch (e) { console.error('addPaidAppExpenseIfNeeded', e.message); }
 }
 
+// Insere um lead tolerando colunas novas ausentes (tag/name_confirmed) — assim,
+// se o schema ainda não foi atualizado no Supabase, o cadastro funciona em vez
+// de o robô/disparo ficar mudo. Rode supabase/schema.sql pra ter as etiquetas.
+export async function insertLeadSafe(payload, select = '*') {
+  let { data, error } = await sb().from('leads').insert(payload).select(select).single();
+  if (error && /tag|name_confirmed|could not find|does not exist|schema cache/i.test(error.message)) {
+    const { tag, name_confirmed, ...rest } = payload;
+    console.warn('insertLeadSafe: recriando sem tag/name_confirmed (rode o supabase/schema.sql):', error.message);
+    ({ data, error } = await sb().from('leads').insert(rest).select(select).single());
+  }
+  return { data, error };
+}
+
 export async function logMessage({ leadId, phone, direction, body, messageId = null, status = null }) {
   await sb().from('messages').insert({
     lead_id: leadId || null, phone, direction, body, message_id: messageId, status,
