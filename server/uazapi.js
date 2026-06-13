@@ -41,8 +41,24 @@ export const uazapi = {
 
   // ---- Instância (token) ----
   // Conecta gerando QR Code / pair code. Retorna { qrcode, paircode, instance }
-  connect(token, phone) {
-    return call('/instance/connect', { method: 'POST', token, body: phone ? { phone } : {} });
+  // opts: { phone?, proxyCity?, proxyState? } — cidade/estado ativam o PROXY
+  // REGIONAL da uazapi (IP da mesma região do chip = menos risco de banimento).
+  connect(token, opts = {}) {
+    const o = typeof opts === 'string' ? { phone: opts } : (opts || {});
+    const body = {};
+    if (o.phone) body.phone = o.phone;
+    if (o.proxyCity) {
+      body.proxy_managed_country = 'br';
+      body.proxy_managed_city = o.proxyCity;
+      if (o.proxyState) body.proxy_managed_state = o.proxyState;
+    }
+    return call('/instance/connect', { method: 'POST', token, body });
+  },
+  // Cidades disponíveis para o proxy regional (autocomplete do modal Conectar).
+  // Retorna { cities: [{ value, label, state, state_label }] }
+  proxyCities(token, { country = 'br', search = '' } = {}) {
+    const q = new URLSearchParams({ country, ...(search ? { search } : {}) });
+    return call(`/proxy-managed/cities?${q}`, { method: 'GET', token });
   },
   status(token) {
     return call('/instance/status', { method: 'GET', token });

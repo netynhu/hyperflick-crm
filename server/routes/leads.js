@@ -149,7 +149,7 @@ router.get('/:id', async (req, res) => {
 // Atualiza (stage, notes, lost_reason, plan...)
 router.patch('/:id', async (req, res) => {
   try {
-    const allow = ['stage', 'notes', 'lost_reason', 'plan', 'name'];
+    const allow = ['stage', 'notes', 'lost_reason', 'plan', 'name', 'tag'];
     const upd = {};
     for (const k of allow) if (k in req.body) upd[k] = req.body[k];
     if ('name' in upd && String(upd.name || '').trim().length < 2) return res.status(400).json({ error: 'Nome inválido.' });

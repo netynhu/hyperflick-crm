@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { requireAdmin } from '../middleware.js';
-import { normalizePhone } from '../lib/helpers.js';
+import { normalizePhone, phoneVariants } from '../lib/helpers.js';
 import { sendWhatsAppRich } from '../lib/service.js';
-import { processBroadcasts } from '../lib/broadcast.js';
+import { processBroadcasts, renderBroadcastText, bumpContactDispatch } from '../lib/broadcast.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -52,7 +52,16 @@ router.post('/send', async (req, res) => {
     for (let i = 0; i < recipients.length; i++) {
       const r = recipients[i];
       try {
-        await sendWhatsAppRich({ leadId: r.leadId, phone: r.phone, text, image, buttons, footer, instanceId: b.instanceId || undefined });
+        // vincula ao lead pelo telefone (a mensagem aparece na conversa do CRM)
+        let leadId = r.leadId;
+        if (!leadId) {
+          const { data: lm } = await sb().from('leads').select('id').in('phone', phoneVariants(r.phone)).limit(1).maybeSingle();
+          leadId = lm?.id || null;
+        }
+        // {nome} → primeiro nome; {a|b} → variação sorteada (mesmo motor do disparo em massa)
+        await sendWhatsAppRich({ leadId, phone: r.phone, text: renderBroadcastText(text, r.name), image, buttons, footer, instanceId: b.instanceId || undefined });
+        // número que ainda não é lead = prospecção → entra na base com contagem
+        if (!leadId) await bumpContactDispatch(r.phone, r.name);
         sent++;
       } catch (e) {
         errors.push({ phone: r.phone, name: r.name, error: e.message });

@@ -49,12 +49,27 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Conecta (gera QR code)
+// Cidades do proxy regional (autocomplete do modal Conectar)
+router.get('/:id/cities', async (req, res) => {
+  try {
+    const { data: inst, error } = await sb().from('whatsapp_instances').select('token').eq('id', req.params.id).single();
+    if (error) throw error;
+    const r = await uazapi.proxyCities(inst.token, { search: String(req.query.search || '') });
+    res.json({ cities: r.cities || r || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Conecta (gera QR code). body: { phone?, proxyCity?, proxyState? }
+// Cidade/estado ativam o proxy regional da uazapi (anti-ban).
 router.post('/:id/connect', async (req, res) => {
   try {
     const { data: inst, error } = await sb().from('whatsapp_instances').select('*').eq('id', req.params.id).single();
     if (error) throw error;
-    const r = await uazapi.connect(inst.token, req.body?.phone);
+    const r = await uazapi.connect(inst.token, {
+      phone: req.body?.phone || undefined,
+      proxyCity: req.body?.proxyCity || undefined,
+      proxyState: req.body?.proxyState || undefined,
+    });
     const qr = r.qrcode || r.qr || r.base64 || r?.instance?.qrcode || null;
     const paircode = r.paircode || r.pairingCode || r?.instance?.paircode || null;
     await sb().from('whatsapp_instances').update({ status: 'connecting' }).eq('id', inst.id);

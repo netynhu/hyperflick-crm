@@ -29,6 +29,8 @@ export const config = {
     welcomeHours: num(process.env.FOLLOWUP_WELCOME_HOURS, 1),
     pixHours: num(process.env.FOLLOWUP_PIX_HOURS, 3),
     winbackHours: num(process.env.FOLLOWUP_WINBACK_HOURS, 24),
+    // Sem resposta após o ÚLTIMO follow-up (winback) por N horas → lead vira PERDIDO
+    lostAfterHours: num(process.env.FOLLOWUP_LOST_HOURS, 48),
   },
 
   // Painel IPTV (uhdpainel) — gera o teste real via endpoint de chatbot

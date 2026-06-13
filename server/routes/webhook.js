@@ -97,7 +97,15 @@ router.post('/uazapi', async (req, res) => {
           // fora isso, só entra no CRM se casar com a frase-gatilho do quiz.
           if (await handleOptOut(phone, text)) { res.json({ ok: true }); return; }
           if (qs.enabled && quizTriggerMatch(text, qs.trigger)) {
-            await startWaQuiz({ phone, pushName: name, inboundText: text, inboundId: messageId });
+            // Etiqueta pela ORIGEM REAL: se o número está na base de contatos,
+            // ele veio de disparo/planilha → 'disparo'; senão é tráfego pago.
+            let tag = 'trafego_pago';
+            try {
+              const { data: c } = await sb().from('contacts').select('id,source')
+                .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
+              if (c && c.source !== 'opt-out') tag = 'disparo';
+            } catch (e) { /* tabela contacts ausente */ }
+            await startWaQuiz({ phone, pushName: name, inboundText: text, inboundId: messageId, tag });
           }
         }
       }

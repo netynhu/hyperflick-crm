@@ -185,12 +185,14 @@ router.get('/summary/all', async (_req, res) => {
     const { data: expenses } = await sb().from('expenses').select('amount,date');
 
     const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
-    const fin = { recebido: 0, pendente: 0, atrasado: 0, pagos: 0, emAberto: 0, recebidoMes: 0, pagosMes: 0 };
+    const hoje = new Date().toISOString().slice(0, 10);    // YYYY-MM-DD
+    const fin = { recebido: 0, pendente: 0, atrasado: 0, pagos: 0, emAberto: 0, recebidoMes: 0, pagosMes: 0, recebidoHoje: 0, pagosHoje: 0 };
     for (const p of payments || []) {
       const amt = Number(p.amount) || 0;
       if (p.status === 'pago') {
         fin.recebido += amt; fin.pagos++;
         if ((p.paid_at || '').slice(0, 7) === mesAtual) { fin.recebidoMes += amt; fin.pagosMes++; }
+        if ((p.paid_at || '').slice(0, 10) === hoje) { fin.recebidoHoje += amt; fin.pagosHoje++; }
       }
       else if (p.status === 'atrasado') { fin.atrasado += amt; fin.emAberto++; }
       else if (p.status === 'pendente') { fin.pendente += amt; fin.emAberto++; }
@@ -203,6 +205,7 @@ router.get('/summary/all', async (_req, res) => {
     fin.lucro = Math.round((fin.recebido - despesas) * 100) / 100;
     fin.lucroMes = Math.round((fin.recebidoMes - despesasMes) * 100) / 100;
     fin.recebidoMes = Math.round(fin.recebidoMes * 100) / 100;
+    fin.recebidoHoje = Math.round(fin.recebidoHoje * 100) / 100;
     fin.ticketMedio = fin.pagos ? Math.round((fin.recebido / fin.pagos) * 100) / 100 : 0;
 
     const stages = { lead: 0, testando: 0, ganho: 0, perdido: 0, followup: 0 };

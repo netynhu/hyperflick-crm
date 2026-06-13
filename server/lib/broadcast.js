@@ -76,7 +76,7 @@ export function renderBroadcastText(tpl, name) {
 
 // Registra o disparo na base de contatos: incrementa o contador do número.
 // Tolerante: se a tabela contacts ainda não existe, segue sem contar.
-async function bumpContactDispatch(phone, name) {
+export async function bumpContactDispatch(phone, name) {
   try {
     const { data: c } = await sb().from('contacts').select('id,dispatch_count,name')
       .in('phone', phoneVariants(phone)).limit(1).maybeSingle();

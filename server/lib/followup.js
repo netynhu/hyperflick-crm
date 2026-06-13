@@ -169,14 +169,14 @@ export async function runFollowups() {
   if (!leads || !leads.length) return { processed: 0, actions: [] };
 
   const ids = leads.map((l) => l.id);
-  const { data: fus } = await sb().from('followups').select('lead_id,type').in('lead_id', ids);
+  const { data: fus } = await sb().from('followups').select('lead_id,type,sent_at').in('lead_id', ids);
   const sentMap = {};
-  for (const f of fus || []) (sentMap[f.lead_id] ||= new Set()).add(f.type);
+  for (const f of fus || []) (sentMap[f.lead_id] ||= {})[f.type] = f.sent_at || true;
 
   const F = config.followup;
   const actions = [];
   for (const l of leads) {
-    const sent = sentMap[l.id] || new Set();
+    const sent = sentMap[l.id] || {};
     const exp = new Date(l.test_expires_at).getTime();
     // Âncora da régua = quando o teste foi criado (fallback: expira − duração).
     const created = l.test_created_at ? new Date(l.test_created_at).getTime() : exp - config.test.durationHours * H;
@@ -187,12 +187,30 @@ export async function runFollowups() {
       }
       // Cadência FIXA por tempo desde a criação do teste — 1 envio por execução,
       // na ordem welcome → oferta(Pix) → winback(Pix).
-      if (!sent.has('welcome') && now >= created + F.welcomeHours * H) {
+      if (!sent.welcome && now >= created + F.welcomeHours * H) {
         await doWelcome(l); actions.push(`${l.id}:welcome`);
-      } else if (!sent.has('expiring') && now >= created + F.pixHours * H) {
+      } else if (!sent.expiring && now >= created + F.pixHours * H) {
         await doPix(l, 'expiring', exp); actions.push(`${l.id}:expiring`);
-      } else if (!sent.has('winback') && now >= created + F.winbackHours * H && now >= exp) {
+      } else if (!sent.winback && now >= created + F.winbackHours * H && now >= exp) {
         await doPix(l, 'winback', exp); actions.push(`${l.id}:winback`);
+      } else if (
+        // REGRA: régua completa (winback enviado) + lostAfterHours sem NENHUMA
+        // resposta do lead → vira PERDIDO automaticamente. Se respondeu alguma
+        // vez depois do winback, marca 'engaged' e nunca mais perde sozinho.
+        sent.winback && !sent.engaged && l.stage === 'followup' &&
+        typeof sent.winback === 'string' &&
+        now - new Date(sent.winback).getTime() > F.lostAfterHours * H
+      ) {
+        const { data: replies } = await sb().from('messages').select('id')
+          .eq('lead_id', l.id).eq('direction', 'in')
+          .gt('created_at', sent.winback).limit(1);
+        if (replies && replies.length) {
+          await markSent(l.id, 'engaged'); // respondeu → fica no follow-up (venda manual)
+          actions.push(`${l.id}:engajado`);
+        } else {
+          await sb().from('leads').update({ stage: 'perdido', lost_reason: 'Follow-up sem resposta (automático)' }).eq('id', l.id);
+          actions.push(`${l.id}:perdido`);
+        }
       }
     } catch (e) {
       actions.push(`${l.id}:erro:${e.message}`);

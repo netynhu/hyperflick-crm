@@ -193,19 +193,19 @@ async function finishQuiz(lead, quiz, device, brand) {
   try {
     await sendWhatsApp({
       leadId: lead.id, phone: lead.phone,
-      text: `${nome ? 'Perfeito, ' + nome + '! ' : 'Perfeito! '}🚀 O app ideal pra você é o *${app}*.\n\nJá tô gerando seu *teste grátis*... um instante. ⏳`,
+      text: `${nome ? 'Perfeito, ' + nome + '!' : 'Perfeito!'} 🚀 Seu app ideal é o *${app}* — gerando seu teste grátis... ⏳`,
     });
   } catch (e) { console.error('finishQuiz gerando msg:', e.message); }
 
   try {
     await generateTestForLead({ ...lead, quiz, device, brand: brand === '_' ? null : brand, app });
-    // Teste enviado. Convida a testar e ensina o "atalho" de compra — sem listar planos.
+    // Teste enviado. UMA mensagem curta com botão de compra (sem listar planos).
     await setState(lead.id, { wa_quiz_state: 'browsing' });
-    await sendWhatsApp({
+    await sendWhatsAppRich({
       leadId: lead.id, phone: lead.phone,
-      text:
-        'Seu acesso de teste chegou aí em cima 👆 É só instalar o app e entrar com os dados.\n\n' +
-        'Qualquer dúvida na instalação, me chama! 🧡\n\nQuando quiser liberar seu acesso *completo*, é só mandar *"quero assinar"* que eu te mostro os planos. 😉',
+      text: 'Qualquer dúvida na instalação, me chama! 🧡\n\nE quando quiser liberar o acesso *completo*, é só tocar aqui embaixo 👇',
+      buttons: [{ text: '💳 Quero assinar' }],
+      footer: 'HyperFlick • IPTV',
     });
   } catch (e) {
     console.error('finishQuiz generateTest:', e.message);

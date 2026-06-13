@@ -228,7 +228,7 @@
     <div class="sb-brand"><span class="logo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-3 9h7l-5 11 3-9H8z"/></svg></span><span>HYPER<b>FLICK</b></span></div>
     <div class="sb-label">Menu</div>
     <nav class="sb-nav">
-      <button data-tab="overview" class="active" onclick="tab('overview')"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Visão geral</span></button>
+      <button data-tab="overview" class="active" onclick="tab('overview')"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Gestão de vendas</span></button>
       <button data-tab="kanban" onclick="tab('kanban')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg><span>CRM · Funil</span></button>
       <button data-tab="msgs" onclick="tab('msgs')"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg><span>Mensagens</span></button>
       <button data-tab="fin" onclick="tab('fin')"><svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="13" rx="2.5"/><path d="M2.5 10h19"/></svg><span>Financeiro</span></button>
@@ -314,7 +314,7 @@ async function logout() { if (supa) await supa.auth.signOut(); location.reload()
 
 /* ===================== TABS ===================== */
 const TITLES = {
-  overview: ['Visão geral', 'Resumo do seu negócio'],
+  overview: ['Gestão de vendas', 'Seu dia de vendas num lugar só'],
   kanban: ['CRM · Funil', 'Arraste os leads entre as etapas'],
   msgs: ['Mensagens', 'Crie e dispare mensagens com imagem e botões'],
   fin: ['Financeiro', 'Cobranças, despesas e relatórios'],
@@ -333,29 +333,103 @@ function tab(name) {
   if (name === 'config') loadConfig();
 }
 
-/* ===================== OVERVIEW (dashboard) ===================== */
+/* ===================== GESTÃO DE VENDAS (dashboard) ===================== */
+const TAG_LABELS = { trafego_pago: ['🟢 Tráfego pago', '#0f9d58'], disparo: ['🟠 Disparo', '#f5611e'], outros: ['📄 Outros', '#9aa0ac'] };
+const hLeft = (ts) => { const h = (new Date(ts).getTime() - Date.now()) / 3600000; return h >= 1 ? Math.floor(h) + 'h' : Math.max(1, Math.round(h * 60)) + 'min'; };
 async function loadOverview() {
-  const s = await api('/payments/summary/all');
+  const el = document.getElementById('overview');
+  el.innerHTML = '<p style="color:var(--muted);font-size:13px">Carregando...</p>';
+  const [s, leads, atras] = await Promise.all([
+    api('/payments/summary/all'),
+    api('/leads').then(ls => ls.filter(l => l.source !== 'manual')).catch(() => []),
+    api('/payments?status=atrasado').catch(() => []),
+  ]);
   const f = s.financeiro;
+  const now = Date.now(), hoje = new Date().toISOString().slice(0, 10);
+  const novosHoje = leads.filter(l => (l.created_at || '').slice(0, 10) === hoje).length;
+  const testesHoje = leads.filter(l => (l.test_created_at || '').slice(0, 10) === hoje).length;
+  const emTeste = leads.filter(l => l.stage === 'testando');
+
+  // 🔥 momentos de venda: teste expirando (12h) e teste recém-expirado (48h)
+  const expirando = emTeste
+    .filter(l => l.test_expires_at && new Date(l.test_expires_at) - now > 0 && new Date(l.test_expires_at) - now < 12 * 3600e3)
+    .sort((a, b) => new Date(a.test_expires_at) - new Date(b.test_expires_at)).slice(0, 6);
+  const expirados = leads
+    .filter(l => l.stage === 'followup' && l.test_expires_at && now - new Date(l.test_expires_at) > 0 && now - new Date(l.test_expires_at) < 48 * 3600e3)
+    .slice(0, 6);
+
+  // conversão por origem (tráfego pago × disparo × outros)
+  const groups = {};
+  for (const l of leads) {
+    const k = TAG_LABELS[l.tag] ? l.tag : 'outros';
+    (groups[k] ||= { leads: 0, teste: 0, ganho: 0 });
+    groups[k].leads++;
+    if (l.stage === 'testando' || l.stage === 'followup') groups[k].teste++;
+    if (l.stage === 'ganho') groups[k].ganho++;
+  }
+  const origemRows = Object.entries(groups).sort((a, b) => b[1].leads - a[1].leads).map(([k, g]) => {
+    const [lbl, color] = TAG_LABELS[k];
+    const conv = g.leads ? Math.round(g.ganho / g.leads * 100) : 0;
+    return `<tr><td><b style="color:${color}">${lbl}</b></td><td>${g.leads}</td><td>${g.teste}</td><td>${g.ganho}</td><td><b style="color:${conv >= 20 ? 'var(--green)' : 'var(--ink)'}">${conv}%</b></td></tr>`;
+  }).join('');
+
+  const leadRow = (l, badge) => `
+    <div class="mini-row">
+      <div style="min-width:0"><b style="color:var(--ink)">${esc(l.name)}</b> ${badge}
+        <div style="color:var(--faint);font-size:11.5px">${esc(l.phone)}${l.plan ? ' · ' + esc(l.plan) : ''}</div></div>
+      <button class="btn sm" style="flex:0 0 auto" onclick="openLead('${l.id}')">Abrir 💬</button>
+    </div>`;
+
   const maxF = Math.max(1, ...Object.values(s.funil));
   const FUN = [['lead', 'Leads', '#9aa0ac'], ['testando', 'Testando', '#f5611e'], ['ganho', 'Ganhos', '#0f9d58'], ['perdido', 'Perdidos', '#e5484d'], ['followup', 'Follow-up', '#b7791f']];
-  document.getElementById('overview').innerHTML = `
+
+  el.innerHTML = `
     <div class="gcards">
-      <div class="gcard g-dark"><div class="lbl">Total de leads</div><div class="val">${s.totalLeads}</div><div class="sub">Conversão de ${s.conversao}%</div></div>
-      <div class="gcard g-purple"><div class="lbl">MRR estimado</div><div class="val">${money(s.mrr)}</div><div class="sub">Receita recorrente / mês</div></div>
-      <div class="gcard g-green"><div class="lbl">Recebido</div><div class="val">${money(f.recebido)}</div><div class="sub">${f.pagos} pagamentos</div></div>
-      <div class="gcard g-red"><div class="lbl">Lucro (sobra)</div><div class="val">${money(f.lucro)}</div><div class="sub">Recebido − despesas</div></div>
+      <div class="gcard g-green"><div class="lbl">💰 Vendas hoje</div><div class="val">${money(f.recebidoHoje)}</div><div class="sub">${f.pagosHoje || 0} pagamento(s) · mês ${money(f.recebidoMes)}</div></div>
+      <div class="gcard g-orange"><div class="lbl">🆕 Leads hoje</div><div class="val">${novosHoje}</div><div class="sub">${testesHoje} teste(s) gerado(s) hoje</div></div>
+      <div class="gcard g-purple"><div class="lbl">🎁 Em teste agora</div><div class="val">${emTeste.length}</div><div class="sub">${money(emTeste.reduce((t, l) => t + planPrice(l.plan), 0))} em jogo · MRR ${money(s.mrr)}</div></div>
+      <div class="gcard g-red"><div class="lbl">🔴 Atrasado</div><div class="val">${money(f.atrasado)}</div><div class="sub">${atras.length} cobrança(s) pra correr atrás</div></div>
     </div>
-    <div class="grid-stats">
-      <div class="stat"><div class="lbl">A receber</div><div class="val yellow">${money(f.pendente)}</div></div>
-      <div class="stat"><div class="lbl">Atrasado</div><div class="val red">${money(f.atrasado)}</div></div>
-      <div class="stat"><div class="lbl">Despesas</div><div class="val red">${money(f.despesas)}</div></div>
+
+    <div class="duo" style="margin-bottom:16px">
+      <div class="card-box" style="margin-bottom:0">
+        <h4>🔥 Fechamentos quentes</h4>
+        <div class="desc">Teste acabando = melhor hora de vender. Fale com eles AGORA.</div>
+        ${expirando.map(l => leadRow(l, `<span class="tag warn">acaba em ${hLeft(l.test_expires_at)}</span>`)).join('')
+          || '<p style="color:var(--muted);font-size:13px">Nenhum teste expirando nas próximas 12h.</p>'}
+        ${expirados.length ? '<div style="border-top:1px solid var(--border-2);margin-top:6px;padding-top:6px"></div>' + expirados.map(l => leadRow(l, '<span class="tag exp">teste expirou</span>')).join('') : ''}
+      </div>
+      <div class="card-box" style="margin-bottom:0">
+        <h4>🔴 Cobranças atrasadas</h4>
+        <div class="desc">Renovação atrasada esfria rápido — cobre com 1 clique.</div>
+        ${atras.slice(0, 8).map(p => `
+          <div class="mini-row">
+            <div style="min-width:0"><b style="color:var(--ink)">${esc(p.lead?.name || '—')}</b>
+              <div style="color:var(--faint);font-size:11.5px">${esc(p.plan || '')} · venceu ${fmtDate(p.due_date)}</div></div>
+            <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+              <b style="color:var(--red)">${money(p.amount)}</b>
+              <button class="btn sm" onclick="payPix('${p.id}')">Pix</button>
+              <button class="btn sm green" onclick="ovMark('${p.id}')">Pago</button>
+            </div>
+          </div>`).join('') || '<p style="color:var(--muted);font-size:13px">Nenhum atraso. 🎉</p>'}
+      </div>
     </div>
-    <div class="section-h">Funil de vendas</div>
-    <div class="funnel">
-      ${FUN.map(([k, l, c]) => `<div class="row-f"><span class="nm">${l}</span><div class="bar"><i style="width:${Math.round((s.funil[k] / maxF) * 100)}%;background:${c}"></i></div><span class="ct">${s.funil[k]}</span></div>`).join('')}
+
+    <div class="duo" style="margin-bottom:16px">
+      <div class="card-box" style="margin-bottom:0">
+        <h4>📊 Conversão por origem</h4>
+        <div class="desc">Onde seu dinheiro de aquisição rende mais.</div>
+        <table><thead><tr><th>Origem</th><th>Leads</th><th>Testaram</th><th>Ganhos</th><th>Conv.</th></tr></thead>
+          <tbody>${origemRows || '<tr><td colspan="5" style="color:var(--muted)">Sem leads ainda.</td></tr>'}</tbody></table>
+      </div>
+      <div class="card-box" style="margin-bottom:0">
+        <h4>📈 Funil</h4>
+        <div class="desc">${s.totalLeads} leads · conversão geral ${s.conversao}% · clientes ativos ${s.clientesAtivos || 0}</div>
+        ${FUN.map(([k, l, c]) => `<div class="row-f" style="display:flex;align-items:center;gap:12px;margin:10px 0"><span style="width:96px;font-size:13px;font-weight:600;color:var(--ink-2)">${l}</span><div class="bar" style="flex:1;height:12px;background:var(--border-2);border-radius:99px;overflow:hidden"><i style="display:block;height:100%;border-radius:99px;width:${Math.round((s.funil[k] / maxF) * 100)}%;background:${c}"></i></div><span style="width:34px;text-align:right;font-weight:700;font-size:13px">${s.funil[k]}</span></div>`).join('')}
+      </div>
     </div>`;
 }
+async function ovMark(id) { try { await api('/payments/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'pago' }) }); toast('Marcado como pago 💰'); loadOverview(); } catch (e) { toast('Erro: ' + e.message); } }
 
 /* ===================== KANBAN ===================== */
 const STAGES = [
@@ -370,13 +444,24 @@ const TAGS = { trafego_pago: ['🟢 Tráfego pago', '#0f9d58'], disparo: ['🟠 
 function tagBadge(tag) { const t = TAGS[tag]; return t ? `<span class="tag" style="background:${t[1]}1a;color:${t[1]}">${t[0]}</span>` : ''; }
 async function loadKanban() { LEADS = (await api('/leads')).filter(l => l.source !== 'manual'); renderBoard(); }
 function dealValue(l) { return planPrice(l.plan); }
+let KFILTER = 'all';
+function boardLeads() { return KFILTER === 'all' ? LEADS : LEADS.filter(l => (TAGS[l.tag] ? l.tag : 'outros') === KFILTER); }
 function renderBoard() {
   const now = Date.now();
-  const sumStage = (id) => LEADS.filter(l => l.stage === id).reduce((s, l) => s + dealValue(l), 0);
-  const totalAll = LEADS.reduce((s, l) => s + dealValue(l), 0);
+  const L = boardLeads();
+  const sumStage = (id) => L.filter(l => l.stage === id).reduce((s, l) => s + dealValue(l), 0);
+  const totalAll = L.reduce((s, l) => s + dealValue(l), 0);
   const nego = sumStage('testando') + sumStage('followup');
+  const cnt = (k) => LEADS.filter(l => (TAGS[l.tag] ? l.tag : 'outros') === k).length;
+  const filterChips = `
+    <div class="seg">
+      <button class="${KFILTER === 'all' ? 'on' : ''}" onclick="KFILTER='all';renderBoard()">Todos (${LEADS.length})</button>
+      <button class="${KFILTER === 'trafego_pago' ? 'on' : ''}" onclick="KFILTER='trafego_pago';renderBoard()">🟢 Tráfego pago (${cnt('trafego_pago')})</button>
+      <button class="${KFILTER === 'disparo' ? 'on' : ''}" onclick="KFILTER='disparo';renderBoard()">🟠 Disparo (${cnt('disparo')})</button>
+      <button class="${KFILTER === 'outros' ? 'on' : ''}" onclick="KFILTER='outros';renderBoard()">Outros (${cnt('outros')})</button>
+    </div>`;
   const board = `<div class="board">${STAGES.map(st => {
-    const items = LEADS.filter(l => l.stage === st.id);
+    const items = L.filter(l => l.stage === st.id);
     const sum = items.reduce((s, l) => s + dealValue(l), 0);
     return `<div class="col" data-stage="${st.id}" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropLead(event,'${st.id}')">
       <div class="col-top" style="background:${st.color}"></div>
@@ -397,14 +482,15 @@ function renderBoard() {
     </div>`;
   }).join('')}</div>`;
   document.getElementById('kanban').innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      ${filterChips}
       <button class="btn" onclick="openAddLead()">+ Adicionar lead</button>
     </div>
     <div class="gcards">
-      <div class="gcard g-dark"><div class="lbl">Total do funil</div><div class="val">${money(totalAll)}</div><div class="sub">${LEADS.length} negócios</div></div>
+      <div class="gcard g-dark"><div class="lbl">Total do funil</div><div class="val">${money(totalAll)}</div><div class="sub">${L.length} negócios</div></div>
       <div class="gcard g-purple"><div class="lbl">Em negociação</div><div class="val">${money(nego)}</div><div class="sub">Testando + follow-up</div></div>
-      <div class="gcard g-green"><div class="lbl">Fechado (ganho)</div><div class="val">${money(sumStage('ganho'))}</div><div class="sub">${LEADS.filter(l => l.stage === 'ganho').length} ganhos</div></div>
-      <div class="gcard g-red"><div class="lbl">Perdido</div><div class="val">${money(sumStage('perdido'))}</div><div class="sub">${LEADS.filter(l => l.stage === 'perdido').length} perdidos</div></div>
+      <div class="gcard g-green"><div class="lbl">Fechado (ganho)</div><div class="val">${money(sumStage('ganho'))}</div><div class="sub">${L.filter(l => l.stage === 'ganho').length} ganhos</div></div>
+      <div class="gcard g-red"><div class="lbl">Perdido</div><div class="val">${money(sumStage('perdido'))}</div><div class="sub">${L.filter(l => l.stage === 'perdido').length} perdidos</div></div>
     </div>
     ${board}`;
 }
@@ -454,10 +540,19 @@ async function openLead(id) {
           <button class="btn sm ghost" style="flex:0 0 auto" onclick="saveContact('${l.id}')">Salvar</button>
         </div>
       </div>
-      <div class="field"><label>Etapa</label>
-        <select id="dStage" onchange="changeStage('${l.id}',this.value)">
-          ${STAGES.map(s => `<option value="${s.id}" ${s.id === l.stage ? 'selected' : ''}>${s.label}</option>`).join('')}
-        </select>
+      <div class="row">
+        <div class="field" style="flex:1"><label>Etapa</label>
+          <select id="dStage" onchange="changeStage('${l.id}',this.value)">
+            ${STAGES.map(s => `<option value="${s.id}" ${s.id === l.stage ? 'selected' : ''}>${s.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="flex:1"><label>Origem</label>
+          <select onchange="changeTag('${l.id}',this.value)">
+            <option value="" ${!l.tag ? 'selected' : ''}>Sem etiqueta</option>
+            <option value="trafego_pago" ${l.tag === 'trafego_pago' ? 'selected' : ''}>🟢 Tráfego pago</option>
+            <option value="disparo" ${l.tag === 'disparo' ? 'selected' : ''}>🟠 Disparo</option>
+          </select>
+        </div>
       </div>
       <div class="row"><button class="btn sm ghost" onclick="genTest('${l.id}')">Gerar teste</button><button class="btn sm green" onclick="markWon('${l.id}')">Marcar ganho</button></div>
       <div class="row" style="margin-top:8px"><button class="btn sm" onclick="genPix('${l.id}')">Enviar Pix · ${esc(l.plan || 'plano')}</button></div>
@@ -488,6 +583,10 @@ async function refreshChat(id) {
   } catch (e) { }
 }
 function closeDrawer() { clearInterval(chatPoll); currentLeadId = null; document.getElementById('drawerRoot').innerHTML = ''; }
+async function changeTag(id, tag) {
+  try { await api('/leads/' + id, { method: 'PATCH', body: JSON.stringify({ tag: tag || null }) }); toast('Origem atualizada'); loadKanban(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
 async function changeStage(id, stage) {
   try {
     if (stage === 'ganho') await api('/leads/' + id + '/won', { method: 'POST', body: JSON.stringify({}) });
@@ -781,13 +880,20 @@ function onImgUrl(v) { MSG.image = v.trim(); renderMsgPreview(); }
 function clearImg() { MSG.image = ''; renderMsgs(); }
 function renderMsgPreview() {
   const el = document.getElementById('waBubble'); if (!el) return;
+  // mostra como o cliente vai receber: {a|b} → 1ª variação · {nome} → exemplo
+  const hasVars = /\{[^{}]+\}/.test(MSG.text || '');
+  const sample = (s) => String(s || '')
+    .replace(/\{([^{}]*\|[^{}]*)\}/g, (_, o) => o.split('|')[0].trim())
+    .replaceAll('{nome}', 'Fulano')
+    .replace(/ {2,}/g, ' ').replace(/ ([!?,.;:])/g, '$1');
   const wa = (s) => esc(s).replace(/\*(.+?)\*/g, '<b>$1</b>').replace(/_(.+?)_/g, '<i>$1</i>');
   const btns = MSG.buttons.filter(b => b.text.trim());
   el.innerHTML = `
     ${MSG.image ? `<img src="${esc(MSG.image)}" onerror="this.style.display='none'">` : ''}
-    <div class="txt">${wa(MSG.text || '') || '<span style="color:#999">Sua mensagem aparece aqui…</span>'}</div>
+    <div class="txt">${wa(sample(MSG.text)) || '<span style="color:#999">Sua mensagem aparece aqui…</span>'}</div>
     ${MSG.footer ? `<div class="ft">${esc(MSG.footer)}</div>` : ''}
-    ${btns.length ? `<div class="btns">${btns.map(b => `<div class="b">${esc(b.text)}</div>`).join('')}</div>` : ''}`;
+    ${btns.length ? `<div class="btns">${btns.map(b => `<div class="b">${esc(b.text)}</div>`).join('')}</div>` : ''}
+    ${hasVars ? '<div style="color:#8a8d91;font-size:10.5px;margin-top:6px;padding:0 2px">🎲 prévia com a 1ª variação — cada envio sorteia {opção A|opção B} e usa o nome real do contato</div>' : ''}`;
 }
 
 /* ----- planilha de números (CSV/TXT nativo, XLSX via SheetJS sob demanda) ----- */
@@ -1407,8 +1513,64 @@ async function newInst() {
   toast('Criando instância...');
   try { await api('/instances', { method: 'POST', body: JSON.stringify({ name }) }); loadConfig(); } catch (e) { toast('Erro: ' + e.message); }
 }
-let qrPoll = null;
-async function connectInst(id) { try { const r = await api('/instances/' + id + '/connect', { method: 'POST', body: JSON.stringify({}) }); showQr(id, r.qrcode, r.paircode); } catch (e) { toast('Erro: ' + e.message); } }
+let qrPoll = null, connCity = null, cityTimer = null;
+// Modal de conexão: cidade/estado ativam o PROXY REGIONAL da uazapi
+// (IP da mesma região do chip → bem menos risco de banimento).
+function connectInst(id) {
+  connCity = null;
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal" onclick="if(event.target===this)closeModal()">
+      <div class="box" style="text-align:left;max-width:430px"><button class="x" onclick="closeModal()">×</button>
+        <h3 style="font-size:18px;color:var(--ink)">Conectar WhatsApp</h3>
+        <p style="color:var(--muted);font-size:12.5px;margin-top:4px">Escolha a <b>cidade do seu chip</b> pra ativar o proxy regional (anti-banimento).</p>
+        <div class="field"><label>🛡️ Cidade do proxy (recomendado)</label>
+          <input id="pcSearch" placeholder="Digite sua cidade... ex: Goiânia" autocomplete="off" oninput="searchCities('${id}')">
+          <div id="pcList" style="max-height:170px;overflow-y:auto;margin-top:6px"></div>
+          <div id="pcSel" style="margin-top:6px"></div>
+        </div>
+        <div class="field"><label>📱 Telefone (opcional — gera código de pareamento)</label>
+          <input id="pcPhone" placeholder="11999998888" inputmode="numeric">
+        </div>
+        <button class="btn" style="width:100%" onclick="doConnect('${id}')">Gerar QR Code / Código</button>
+        <p style="text-align:center;margin-top:10px"><a href="#" style="font-size:12px;color:var(--muted)" onclick="event.preventDefault();connCity=null;doConnect('${id}')">conectar sem proxy</a></p>
+      </div></div>`;
+  setTimeout(() => document.getElementById('pcSearch')?.focus(), 60);
+}
+function searchCities(id) {
+  clearTimeout(cityTimer);
+  const q = document.getElementById('pcSearch').value.trim();
+  if (q.length < 2) { document.getElementById('pcList').innerHTML = ''; return; }
+  cityTimer = setTimeout(async () => {
+    try {
+      const r = await api(`/instances/${id}/cities?search=${encodeURIComponent(q)}`);
+      const list = (r.cities || []).slice(0, 12);
+      document.getElementById('pcList').innerHTML = list.map(c => `
+        <div class="mini-row" style="cursor:pointer;padding:7px 8px" onclick='pickCity(${JSON.stringify(c.value)},${JSON.stringify(c.state || '')},${JSON.stringify(c.label || c.value)},${JSON.stringify(c.state_label || '')})'>
+          <span>📍 ${esc(c.label || c.value)}</span><span style="color:var(--muted);font-size:11.5px">${esc((c.state_label || c.state || '').toUpperCase())}</span>
+        </div>`).join('') || '<p style="color:var(--muted);font-size:12px;padding:4px">Nenhuma cidade encontrada.</p>';
+    } catch (e) { document.getElementById('pcList').innerHTML = `<p style="color:var(--red);font-size:12px">${esc(e.message)}</p>`; }
+  }, 350);
+}
+function pickCity(value, state, label, stateLabel) {
+  connCity = { value, state, label };
+  document.getElementById('pcList').innerHTML = '';
+  document.getElementById('pcSearch').value = label;
+  document.getElementById('pcSel').innerHTML = `<span class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ Proxy: ${esc(label)}${stateLabel ? ' · ' + esc(stateLabel) : ''}</span>`;
+}
+async function doConnect(id) {
+  const phone = (document.getElementById('pcPhone')?.value || '').replace(/\D/g, '');
+  toast('Conectando' + (connCity ? ' com proxy de ' + connCity.label : '') + '...');
+  try {
+    const r = await api('/instances/' + id + '/connect', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(phone ? { phone: phone.length <= 11 ? '55' + phone : phone } : {}),
+        ...(connCity ? { proxyCity: connCity.value, proxyState: connCity.state || undefined } : {}),
+      }),
+    });
+    showQr(id, r.qrcode, r.paircode);
+  } catch (e) { toast('Erro: ' + e.message); }
+}
 function qrSrc(qr) { if (!qr) return ''; if (typeof qr === 'object') qr = qr.base64 || ''; return qr.startsWith('data:') ? qr : 'data:image/png;base64,' + qr; }
 function showQr(id, qr, paircode) {
   document.getElementById('modalRoot').innerHTML = `

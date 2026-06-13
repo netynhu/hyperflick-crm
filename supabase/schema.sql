@@ -219,23 +219,37 @@ create trigger trg_templates_updated before update on message_templates
 for each row execute function set_updated_at();
 
 -- Modelos do PLANO DE VENDAS (régua de 4 toques + recuperação).
--- {nome} vira o primeiro nome; {opção A|opção B} sorteia uma variação (anti-ban).
+-- SEM {nome}: planilha de prospecção normalmente não tem o nome do cliente.
+-- {opção A|opção B} sorteia uma variação por mensagem (anti-ban).
 insert into message_templates (name, message_text, footer, buttons) values
   ('🎁 Dia 1 · Abertura — teste grátis',
-   E'{Oi|Olá|E aí} {nome}! Tudo {bem|certo} por aí? 😊\n\nAqui é da *HyperFlick* 🧡 A gente libera *+800 canais ao vivo, +60 mil filmes e séries* e todo o futebol num app só — sem travar e bem mais barato que TV por assinatura.\n\nLiberei um *TESTE GRÁTIS* pra você {conhecer|experimentar} sem pagar nada. Quer?',
+   E'{Oi|Olá|E aí}! Tudo {bem|certo} por aí? 😊\n\nAqui é da *HyperFlick* 🧡 A gente libera *+800 canais ao vivo, +60 mil filmes e séries* e todo o futebol num app só — sem travar e bem mais barato que TV por assinatura.\n\nLiberei um *TESTE GRÁTIS* pra você {conhecer|experimentar} sem pagar nada. Quer?',
    'HyperFlick • IPTV', '[{"text":"Quero meu teste grátis 🎁"}]'),
   ('⭐ Dia 3 · Prova social',
-   E'{Oi|Olá} {nome}! 👋\n\nSó hoje {3|4} pessoas saíram da TV por assinatura e vieram pra *HyperFlick* 🧡\n\n_"Saí da operadora cara, instalei em 5 minutos e nunca mais travou. Melhor decisão."_ — Rafael M. ⭐⭐⭐⭐⭐\n\nSeu *teste grátis* continua disponível — quer que eu libere {agora|pra você}?',
+   E'{Oi|Olá}! 👋\n\nSó {hoje|essa semana} {3|4} pessoas saíram da TV por assinatura e vieram pra *HyperFlick* 🧡\n\n_"Saí da operadora cara, instalei em 5 minutos e nunca mais travou. Melhor decisão."_ — Rafael M. ⭐⭐⭐⭐⭐\n\nSeu *teste grátis* {continua disponível|ainda tá reservado} — quer que eu libere?',
    'HyperFlick • IPTV', '[{"text":"Quero meu teste grátis 🎁"}]'),
   ('🔥 Dia 5 · Oferta com urgência',
-   E'{nome}, {olha só|presta atenção} 👀\n\nTV por assinatura: *R$ 120+/mês* pra meia dúzia de canais.\n*HyperFlick:* a partir de *R$ 19,90/mês* com +800 canais, filmes, séries e futebol ao vivo. 🧡\n\nE no plano anual sai por menos de *R$ 0,40 por dia*. ☕\n\nBora ativar o seu?',
+   E'{Olha só|Presta atenção} 👀\n\nTV por assinatura: *R$ 120+/mês* pra meia dúzia de canais.\n*HyperFlick:* a partir de *R$ 19,90/mês* com +800 canais, filmes, séries e futebol ao vivo. 🧡\n\nE no plano anual sai por menos de *R$ 0,40 por dia*. ☕\n\nBora ativar o seu?',
    'HyperFlick • IPTV', '[{"text":"Quero assinar 💳"},{"text":"Quero testar grátis antes 🎁"}]'),
   ('⏰ Dia 7 · Última chamada',
-   E'{nome}, {última chamada|vou fechar sua reserva}! ⏰\n\nSeu acesso de *teste grátis* da HyperFlick expira hoje e vou liberar a vaga pra outra pessoa.\n\nSe quiser {garantir|continuar com} +800 canais e +60 mil filmes e séries sem travar, é só tocar abaixo 👇',
+   E'{Última chamada|Vou liberar sua vaga}! ⏰\n\nSeu acesso de *teste grátis* da HyperFlick expira hoje e a vaga vai pra outra pessoa.\n\nSe quiser {garantir|continuar com} +800 canais e +60 mil filmes e séries sem travar, é só tocar abaixo 👇',
    'HyperFlick • IPTV', '[{"text":"Quero assinar agora 🔥"},{"text":"Quero meu teste grátis 🎁"}]'),
   ('🔄 Recuperação · sumiu depois do teste',
-   E'{Oi|Olá} {nome}! 😊\n\nVi que você testou a *HyperFlick* e {sumiu|não voltou}... aconteceu {algo|alguma coisa}? Se tiver qualquer dúvida ou dificuldade com o app, me chama que eu resolvo contigo na hora. 🧡\n\nE se quiser já ativar seu acesso completo, é só tocar abaixo 👇',
+   E'{Oi|Olá}! 😊\n\nVi que você testou a *HyperFlick* e {sumiu|não voltou}... aconteceu {algo|alguma coisa}? Se tiver qualquer dúvida com o app, me chama que eu resolvo contigo na hora. 🧡\n\nE se quiser já ativar seu acesso completo, é só tocar abaixo 👇',
    'HyperFlick • IPTV', '[{"text":"Quero assinar 💳"},{"text":"Tive uma dúvida 🤔"}]')
+on conflict (name) do nothing;
+
+-- Correção pontual: remove o {nome} de modelos já semeados em bases antigas.
+-- Só mexe se o texto ainda contém {nome} (não sobrescreve modelo editado sem ele).
+update message_templates set message_text = replace(replace(replace(message_text,
+  ' {nome}!', '!'), ' {nome},', ','), '{nome}, ', '')
+where message_text like '%{nome}%';
+
+-- ⚽ COPA DO MUNDO 2026 — anexe a IMAGEM com os jogos do dia na hora do disparo.
+insert into message_templates (name, message_text, footer, buttons) values
+  ('⚽ Copa do Mundo · Jogos de hoje',
+   E'⚽ {É DIA DE COPA|HOJE TEM COPA DO MUNDO}! 🏆\n\n{Olha|Confere} na imagem os jogos de hoje 👆 Na *HyperFlick* você assiste *TODOS ao vivo, em 4K e sem travar* — nem no lance do gol. 🧡\n\n📺 Todos os jogos da Copa + 800 canais, futebol nacional, filmes e séries num app só — {bem mais barato|pagando muito menos} que TV por assinatura.\n\nQuer ver o jogo de hoje *de graça*? Libero seu teste {agora|na hora} 👇',
+   'HyperFlick • Copa do Mundo 2026', '[{"text":"Quero meu teste grátis ⚽"},{"text":"Quero assinar 💳"}]')
 on conflict (name) do nothing;
 
 -- ============================================================
