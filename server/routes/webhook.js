@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { hasSupabase } from '../supabase.js';
 import { normalizePhone, phoneVariants, isBuyIntent } from '../lib/helpers.js';
-import { logMessage } from '../lib/service.js';
+import { logMessage, resolveInboundInstanceId } from '../lib/service.js';
 import { getPayment } from '../lib/mercadopago.js';
 import { sendMonthlyPix } from '../lib/followup.js';
 import { applyApprovedPayment } from '../lib/billing.js';
@@ -40,6 +40,10 @@ function parseInbound(body) {
     m.chatid || m.sender || m.from || m.number ||
     m.key?.remoteJid || m.remoteJid || body?.chatid || '';
   const phone = normalizePhone(String(rawJid).split('@')[0].split(':')[0]);
+  // Qual número/instância RECEBEU a mensagem (pra responder pelo mesmo):
+  //  body.instance = id da instância na uazapi · data.owner = telefone conectado.
+  const uazapiId = body?.instance || m.instance || null;
+  const ownerPhone = m.owner || body?.owner || null;
   const text =
     m.text || m.body || m.content?.text || m.caption ||
     (typeof m.content === 'string' ? m.content : '') ||
@@ -52,7 +56,7 @@ function parseInbound(body) {
     m.message?.listResponseMessage?.title || '';
   const name = m.senderName || m.pushName || m.notifyName || null;
   const messageId = m.id || m.messageid || m.key?.id || null;
-  return { fromMe, phone, text, name, messageId };
+  return { fromMe, phone, text, name, messageId, uazapiId, ownerPhone };
 }
 
 // POST /api/webhook/uazapi  — recebe mensagens de entrada
@@ -61,14 +65,21 @@ function parseInbound(body) {
 router.post('/uazapi', async (req, res) => {
   try {
     if (hasSupabase()) {
-      const { fromMe, phone, text, name, messageId } = parseInbound(req.body);
+      const { fromMe, phone, text, name, messageId, uazapiId, ownerPhone } = parseInbound(req.body);
       if (!fromMe && phone) {
+        // Instância que RECEBEU a mensagem → toda resposta sai por ela (nunca o padrão).
+        const recvInstanceId = await resolveInboundInstanceId({ uazapiId, ownerPhone });
         // Busca por VARIANTES do telefone: o JID do WhatsApp pode vir sem o
         // nono dígito, enquanto o lead foi salvo com ele (e vice-versa).
         const { data: lead } = await sb().from('leads').select('*')
           .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
         const qs = await getWaQuizSettings();
         if (lead) {
+          // fixa/atualiza o dono da conversa = quem recebeu (o quiz responde por aqui)
+          if (recvInstanceId && lead.instance_id !== recvInstanceId) {
+            try { await sb().from('leads').update({ instance_id: recvInstanceId }).eq('id', lead.id); } catch (e) { /* coluna pendente */ }
+            lead.instance_id = recvInstanceId;
+          }
           await logMessage({ leadId: lead.id, phone, direction: 'in', body: text, messageId });
           // "PARAR"/"SAIR" → marca opt-out na base e confirma (antes de qualquer robô)
           if (await handleOptOut(phone, text)) { res.json({ ok: true }); return; }
@@ -105,7 +116,8 @@ router.post('/uazapi', async (req, res) => {
                 .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
               if (c && c.source !== 'opt-out') tag = 'disparo';
             } catch (e) { /* tabela contacts ausente */ }
-            await startWaQuiz({ phone, pushName: name, inboundText: text, inboundId: messageId, tag });
+            // o quiz roda no MESMO número que recebeu a mensagem
+            await startWaQuiz({ phone, pushName: name, inboundText: text, inboundId: messageId, tag, instanceId: recvInstanceId });
           }
         }
       }

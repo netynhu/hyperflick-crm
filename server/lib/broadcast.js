@@ -12,13 +12,20 @@ import { sendWhatsAppRich, insertLeadSafe } from './service.js';
 // Garante um lead para o número disparado: reusa o existente ou cria com a
 // etiqueta "disparo" na etapa Lead (todo cliente disparado vira lead). Mantém o
 // histórico de conversa no CRM e permite o quiz quando ele responder.
-async function ensureLeadForBroadcast(phone, name) {
-  const { data: existing } = await sb().from('leads').select('id')
+async function ensureLeadForBroadcast(phone, name, instanceId) {
+  const { data: existing } = await sb().from('leads').select('id,instance_id')
     .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
-  if (existing) return existing.id;
+  if (existing) {
+    // fixa o "dono" da conversa = número que disparou (1ª resposta já vai certo)
+    if (instanceId && existing.instance_id !== instanceId) {
+      try { await sb().from('leads').update({ instance_id: instanceId }).eq('id', existing.id); } catch (e) { /* coluna pendente */ }
+    }
+    return existing.id;
+  }
   const { data, error } = await insertLeadSafe({
     name: name || 'Cliente', phone: normalizePhone(phone), stage: 'lead',
     source: 'disparo', tag: 'disparo', name_confirmed: !!name,
+    ...(instanceId ? { instance_id: instanceId } : {}),
   }, 'id');
   if (!error && data) return data.id;
   // corrida na unique(phone) ou outro erro: re-busca
@@ -74,9 +81,10 @@ export function renderBroadcastText(tpl, name) {
   return t.replace(/ {2,}/g, ' ').replace(/ ([!?,.;:])/g, '$1').replace(/^ +| +$/gm, '');
 }
 
-// Registra o disparo na base de contatos: incrementa o contador do número.
-// Tolerante: se a tabela contacts ainda não existe, segue sem contar.
-export async function bumpContactDispatch(phone, name) {
+// Registra o disparo na base de contatos: incrementa o contador do número e
+// marca qual broadcast o incluiu (last_broadcast_id), pra outro disparo não
+// repetir o mesmo contato. Tolerante: sem a tabela contacts, segue sem contar.
+export async function bumpContactDispatch(phone, name, broadcastId) {
   try {
     const { data: c } = await sb().from('contacts').select('id,dispatch_count,name')
       .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
@@ -85,12 +93,14 @@ export async function bumpContactDispatch(phone, name) {
       await sb().from('contacts').update({
         dispatch_count: (Number(c.dispatch_count) || 0) + 1,
         last_dispatched_at: nowIso,
+        ...(broadcastId ? { last_broadcast_id: broadcastId } : {}),
         ...(c.name ? {} : (name ? { name } : {})),
       }).eq('id', c.id);
     } else {
       await sb().from('contacts').insert({
         phone: normalizePhone(phone), name: name || null, source: 'disparo',
         dispatch_count: 1, last_dispatched_at: nowIso,
+        ...(broadcastId ? { last_broadcast_id: broadcastId } : {}),
       });
     }
   } catch (e) { /* tabela contacts ausente — rode o schema.sql */ }
@@ -144,8 +154,8 @@ export async function processBroadcasts() {
     const buttons = Array.isArray(bc.buttons) ? bc.buttons : [];
     let outcome;
     try {
-      // todo número disparado vira lead (etiqueta "disparo") e guarda o histórico
-      const leadId = await ensureLeadForBroadcast(r.phone, r.name);
+      // todo número disparado vira lead (etiqueta "disparo"), dono = número que dispara
+      const leadId = await ensureLeadForBroadcast(r.phone, r.name, bc.instance_id || null);
       // {nome} → primeiro nome; {a|b} → variação sorteada (anti-ban)
       const text = renderBroadcastText(bc.message_text, r.name);
       await sendWhatsAppRich({
@@ -155,7 +165,7 @@ export async function processBroadcasts() {
       });
       await sb().from('broadcast_recipients')
         .update({ status: 'enviado', sent_at: new Date().toISOString(), error: null }).eq('id', r.id);
-      await bumpContactDispatch(r.phone, r.name); // contador de disparos por número
+      await bumpContactDispatch(r.phone, r.name, bc.id); // contador + marca o disparo
       outcome = 'enviado';
     } catch (e) {
       if (e.code === 'NO_INSTANCE') {

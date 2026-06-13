@@ -83,7 +83,7 @@ router.post('/manual', async (req, res) => {
 router.post('/:id/pix', async (req, res) => {
   try {
     const { data: payment, error } = await sb().from('payments')
-      .select('*, lead:leads(id,name,phone,plan)').eq('id', req.params.id).single();
+      .select('*, lead:leads(id,name,phone,plan,instance_id)').eq('id', req.params.id).single();
     if (error) throw error;
     const lead = payment.lead;
     if (!lead) return res.status(400).json({ error: 'Cobrança sem cliente vinculado.' });
@@ -105,7 +105,7 @@ router.post('/:id/pix', async (req, res) => {
     const venc = payment.due_date ? new Date(payment.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '';
     let whatsappSent = false;
     try {
-      await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro: `${nome}, segue o Pix da sua mensalidade HyperFlick 🧡${venc ? ` (vencimento ${venc})` : ''}`, plan: payment.plan, amount: payment.amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
+      await sendPixMessage({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, intro: `${nome}, segue o Pix da sua mensalidade HyperFlick 🧡${venc ? ` (vencimento ${venc})` : ''}`, plan: payment.plan, amount: payment.amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
       whatsappSent = true;
     } catch (e) { /* ignore */ }
 

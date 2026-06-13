@@ -61,6 +61,9 @@ alter table leads add column if not exists tag             text;
 -- Nome confirmado pelo próprio cliente? Quiz pede o nome só DEPOIS da compra paga.
 -- Default true para não pedir nome a leads antigos/manuais; quiz cria com false.
 alter table leads add column if not exists name_confirmed  boolean default true;
+-- Instância "dona" da conversa: o número pelo qual o lead foi disparado/respondeu.
+-- Toda resposta (quiz, Pix, follow-up) sai por ESTE número — nunca pelo padrão.
+alter table leads add column if not exists instance_id     uuid;
 
 -- ============================================================
 -- PAYMENTS  (cobranças / financeiro — quem pagou, quem não)
@@ -195,6 +198,8 @@ create table if not exists contacts (
 );
 create index if not exists contacts_optout_idx on contacts (opt_out);
 create index if not exists contacts_lastdisp_idx on contacts (last_dispatched_at);
+-- Último disparo que incluiu este número (evita o MESMO contato em 2 disparos).
+alter table contacts add column if not exists last_broadcast_id uuid;
 
 drop trigger if exists trg_contacts_updated on contacts;
 create trigger trg_contacts_updated before update on contacts

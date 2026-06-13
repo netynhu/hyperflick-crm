@@ -143,6 +143,37 @@ router.post('/broadcasts', async (req, res) => {
     } catch (e) { /* tabela contacts ausente — segue sem filtro */ }
     if (!recipients.length) return res.status(400).json({ error: 'Todos os números da lista pediram pra não receber (opt-out).' });
 
+    // DEDUP entre disparos: remove quem JÁ está pendente em outro disparo ativo,
+    // pra um mesmo número não receber dois disparos ao mesmo tempo (a menos que
+    // o usuário desligue com allowDuplicates).
+    let alreadyQueued = 0;
+    if (!b.allowDuplicates) {
+      try {
+        const { data: active } = await sb().from('broadcasts').select('id')
+          .in('status', ['agendado', 'enviando', 'pausado']);
+        const ids = (active || []).map((x) => x.id);
+        if (ids.length) {
+          const phones = recipients.map((r) => r.phone);
+          const queued = new Set();
+          for (let i = 0; i < phones.length; i += 300) {
+            const { data } = await sb().from('broadcast_recipients').select('phone')
+              .eq('status', 'pendente').in('broadcast_id', ids).in('phone', phones.slice(i, i + 300));
+            for (const d of data || []) queued.add(d.phone);
+          }
+          if (queued.size) { alreadyQueued = queued.size; recipients = recipients.filter((r) => !queued.has(r.phone)); }
+        }
+      } catch (e) { /* segue sem dedup */ }
+    }
+    if (!recipients.length) return res.status(400).json({ error: 'Todos os números já estão em outro disparo na fila.' });
+
+    // QUANTIDADE por programação (#5): limita quantos números entram neste disparo.
+    let capped = 0;
+    const limit = Math.round(Number(b.limit));
+    if (Number.isFinite(limit) && limit > 0 && recipients.length > limit) {
+      capped = recipients.length - limit;
+      recipients = recipients.slice(0, limit);
+    }
+
     // planilha nova → salva os números na base de contatos (não sobrescreve existentes)
     if (b.saveToContacts) {
       try {
@@ -198,7 +229,7 @@ router.post('/broadcasts', async (req, res) => {
       if (e2) throw e2;
     }
 
-    res.json({ ok: true, id: bc.id, total: recipients.length, invalid, optedOut, scheduledAt: bc.scheduled_at });
+    res.json({ ok: true, id: bc.id, total: recipients.length, invalid, optedOut, alreadyQueued, capped, scheduledAt: bc.scheduled_at });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

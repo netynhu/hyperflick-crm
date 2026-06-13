@@ -16,6 +16,9 @@ export const config = {
   uazapi: {
     url: (process.env.UAZAPI_URL || 'https://free.uazapi.com').replace(/\/$/, ''),
     adminToken: process.env.UAZAPI_ADMIN_TOKEN || '',
+    // "Digitando..." antes de cada mensagem (ms). Mais humano/anti-ban, mas
+    // segura a resposta do webhook — baixe se tomar timeout na Vercel.
+    typingDelayMs: num(process.env.TYPING_DELAY_MS, 3000),
   },
 
   test: {

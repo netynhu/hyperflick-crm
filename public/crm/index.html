@@ -657,7 +657,7 @@ async function saveNewLead() {
 let MSGTAB = 'single'; // single | mass | contacts | templates | plan
 let MSG = { text: '', footer: '', image: '', buttons: [], stageCounts: {}, total: 0 }; // composer compartilhado
 let SINGLE = { instanceId: '', number: '' };
-let MASS = { target: 'planilha', sheet: { recipients: [], invalid: 0, fileName: '' }, saveToBase: true, baseFilter: 'ativos', coldDays: 30, stage: 'lead', instanceId: '', delayMin: 20, delayMax: 180, schedule: 'now', when: '', winStart: 8, winEnd: 21 };
+let MASS = { target: 'planilha', sheet: { recipients: [], invalid: 0, fileName: '' }, saveToBase: true, baseFilter: 'ativos', coldDays: 30, stage: 'lead', instanceId: '', delayMin: 20, delayMax: 180, limit: '', schedule: 'now', when: '', winStart: 8, winEnd: 21 };
 let BCASTS = [], INSTANCES = [], TEMPLATES = [], CSTATS = null, CONTACTS = [], CFILTER = 'all', CSEARCH = '';
 
 async function loadMsgs() {
@@ -747,11 +747,12 @@ function massCards() {
     ${instSelect('MASS')}
   </div>
   <div class="card-box" style="margin-bottom:16px">
-    <h4>3 · Velocidade (anti-bloqueio)</h4>
-    <div class="desc">Intervalo <b>aleatório</b> entre cada mensagem, sorteado a cada envio. Quanto maior, mais seguro pro seu número.</div>
-    <div class="row" style="max-width:340px">
-      <div class="field" style="margin:0"><label>Mínimo (segundos)</label><input type="number" min="5" value="${MASS.delayMin}" oninput="MASS.delayMin=this.value;updEta()"></div>
-      <div class="field" style="margin:0"><label>Máximo (segundos)</label><input type="number" min="5" value="${MASS.delayMax}" oninput="MASS.delayMax=this.value;updEta()"></div>
+    <h4>3 · Velocidade e quantidade</h4>
+    <div class="desc">Intervalo <b>aleatório</b> entre cada mensagem (anti-bloqueio) e quantos números enviar nesta programação.</div>
+    <div class="row" style="max-width:520px;flex-wrap:wrap">
+      <div class="field" style="margin:0;flex:1;min-width:120px"><label>Intervalo mín. (s)</label><input type="number" min="5" value="${MASS.delayMin}" oninput="MASS.delayMin=this.value;updEta()"></div>
+      <div class="field" style="margin:0;flex:1;min-width:120px"><label>Intervalo máx. (s)</label><input type="number" min="5" value="${MASS.delayMax}" oninput="MASS.delayMax=this.value;updEta()"></div>
+      <div class="field" style="margin:0;flex:1;min-width:140px"><label>Quantos enviar</label><input type="number" min="1" placeholder="todos (${massCount()})" value="${MASS.limit}" oninput="MASS.limit=this.value;updEta()"></div>
     </div>
     <p id="massEta" style="color:var(--muted);font-size:12.5px;margin-top:10px;font-weight:600">${etaText()}</p>
   </div>
@@ -809,12 +810,15 @@ function massCount() {
   return MSG.total || 0;
 }
 function etaText() {
-  const n = massCount();
+  let n = massCount();
   if (!n) return 'Suba a planilha (ou escolha a etapa) pra ver a duração estimada.';
+  const lim = Math.round(Number(MASS.limit));
+  const capped = Number.isFinite(lim) && lim > 0 && lim < n;
+  if (capped) n = lim;
   const min = Math.max(5, Number(MASS.delayMin) || 20), max = Math.max(min, Number(MASS.delayMax) || 180);
   const secs = Math.max(0, n - 1) * ((min + max) / 2);
   const h = Math.floor(secs / 3600), m = Math.round((secs % 3600) / 60);
-  return `⏱ Duração estimada: ${h ? h + 'h ' : ''}${m}min para ${n} mensagem(ns)`;
+  return `⏱ Duração estimada: ${h ? h + 'h ' : ''}${m}min para ${n} mensagem(ns)${capped ? ' (limitado)' : ''}`;
 }
 function updEta() { const el = document.getElementById('massEta'); if (el) el.textContent = etaText(); }
 function setMassTarget(t) { MASS.target = t; renderMsgs(); }
@@ -1176,6 +1180,7 @@ async function dispatchMsg() {
       delayMinS: Number(MASS.delayMin) || 20,
       delayMaxS: Number(MASS.delayMax) || 180,
       windowStart: MASS.winStart, windowEnd: MASS.winEnd,
+      ...(Number(MASS.limit) > 0 ? { limit: Number(MASS.limit) } : {}),
       ...(scheduled ? { scheduledAt: new Date(MASS.when).toISOString() } : {}),
     };
     if (MASS.target === 'base') {
@@ -1196,7 +1201,8 @@ async function dispatchMsg() {
     const r = await api('/messages/broadcasts', { method: 'POST', body: JSON.stringify(payload) });
     // primeira mensagem sai já; o resto segue o sorteio via cron
     if (!scheduled) api('/messages/broadcasts/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshBcasts).catch(() => {});
-    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${scheduled ? 'Disparo programado' : 'Disparo iniciado'} — ${r.total} número(s)${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}${r.optedOut ? ` · ${r.optedOut} opt-out removido(s)` : ''}</div>`;
+    const extras = [r.invalid && `${r.invalid} inválido(s)`, r.optedOut && `${r.optedOut} opt-out`, r.alreadyQueued && `${r.alreadyQueued} já em outro disparo`, r.capped && `${r.capped} fora do limite`].filter(Boolean);
+    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${scheduled ? 'Disparo programado' : 'Disparo iniciado'} — ${r.total} número(s)${extras.length ? ' · ' + extras.join(' · ') : ''}</div>`;
     toast(scheduled ? 'Disparo programado! 🗓' : 'Disparo iniciado! 🚀');
     MASS.sheet = { recipients: [], invalid: 0, fileName: '' };
     api('/contacts/stats').then(s => { CSTATS = s; }).catch(() => {});

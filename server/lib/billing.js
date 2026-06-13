@@ -41,13 +41,13 @@ export async function applyApprovedPayment({ payment, leadId: leadIdHint }) {
   if (leadId) {
     await sb().from('leads').update({ stage: 'ganho' }).eq('id', leadId);
     const { data: lead } = await sb().from('leads')
-      .select('id,name,phone,test_username,app,source,tag,name_confirmed').eq('id', leadId).maybeSingle();
+      .select('id,name,phone,test_username,app,source,tag,name_confirmed,instance_id').eq('id', leadId).maybeSingle();
     if (lead) {
       // 6 meses+ com app pago → lança o custo do app (R$ 20) nas despesas
       await addPaidAppExpenseIfNeeded({ lead, plan: payment?.plan });
       const nome = (lead.name || '').split(' ')[0];
       try {
-        await sendWhatsApp({ leadId, phone: lead.phone, text: `Pagamento confirmado${nome && lead.name_confirmed ? ', ' + nome : ''}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
+        await sendWhatsApp({ leadId, phone: lead.phone, instanceId: lead.instance_id, text: `Pagamento confirmado${nome && lead.name_confirmed ? ', ' + nome : ''}! 🎉\nSeu acesso completo HyperFlick já está ativo. Bom divertimento!` });
       } catch (e) { /* ignore */ }
       // avisa o admin da venda (com o usuário de acesso, pra renovar no painel)
       await notifyAdmin(buildSaleAlert({

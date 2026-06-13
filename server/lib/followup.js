@@ -56,7 +56,7 @@ export async function deliverPixToLead(lead, intro) {
 
   const nome = (lead.name || '').split(' ')[0];
   const head = intro || `${nome}, perfeito! Aqui está o Pix pra liberar seu acesso 🧡`;
-  await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro: head, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
+  await sendPixMessage({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, intro: head, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
   return { plan, amount, pix };
 }
 
@@ -81,7 +81,7 @@ export async function sendMonthlyPix(lead) {
     pix_ticket_url: pix.ticketUrl, last_charged_at: new Date().toISOString(),
   }).eq('id', pay.id);
   await sendPixMessage({
-    leadId: lead.id, phone: lead.phone,
+    leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
     intro: `Perfeito, ${nome}! Aqui está o Pix da sua mensalidade HyperFlick 🧡`,
     plan: pay.plan, amount: pay.amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl,
   });
@@ -103,14 +103,14 @@ async function markSent(leadId, type) {
 async function doWelcome(lead) {
   const nome = (lead.name || '').split(' ')[0];
   const text = `Oi ${nome}! Aqui é da HyperFlick 🧡\nConseguiu instalar e já está assistindo? Se tiver qualquer dificuldade, me chama aqui que eu te ajudo a deixar tudo 100%. 📺`;
-  await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+  await sendWhatsApp({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, text });
   await markSent(lead.id, 'welcome');
 }
 
 async function doPix(lead, kind, exp) {
   const { plan, amount, pix } = await sendPixForLead(lead);
   const intro = pixHead({ nome: (lead.name || '').split(' ')[0], plan, amount, kind, exp });
-  await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
+  await sendPixMessage({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, intro, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
   await markSent(lead.id, kind === 'expiring' ? 'expiring' : 'winback');
 }
 
@@ -119,7 +119,7 @@ async function doPix(lead, kind, exp) {
 export async function runBilling() {
   const today = new Date().toISOString().slice(0, 10);
   const { data: pays } = await sb().from('payments')
-    .select('*, lead:leads(id,name,phone,plan,stage)')
+    .select('*, lead:leads(id,name,phone,plan,stage,instance_id)')
     .in('status', ['pendente', 'atrasado'])
     .lte('due_date', today);
 
@@ -144,7 +144,7 @@ export async function runBilling() {
       const nome = (p.lead.name || '').split(' ')[0];
       const venc = p.due_date ? new Date(p.due_date + 'T12:00:00').toLocaleDateString('pt-BR') : '';
       await sendWhatsAppRich({
-        leadId: p.lead.id, phone: p.lead.phone,
+        leadId: p.lead.id, phone: p.lead.phone, instanceId: p.lead.instance_id,
         text: `${nome}, sua mensalidade HyperFlick está disponível 💳\n\n💠 *Plano:* ${p.plan || 'Mensal'}\n📅 *Vencimento:* ${venc}\n💰 *Valor:* R$ ${valor}\n\nÉ rapidinho — toque no botão abaixo pra receber seu Pix 👇`,
         buttons: [{ text: '💰 Quero pagar agora' }],
         footer: 'HyperFlick • IPTV',

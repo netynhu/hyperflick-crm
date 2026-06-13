@@ -113,7 +113,7 @@ async function setState(leadId, patch) {
 async function askMenu(lead, text, opts) {
   const buttons = opts.map((o, i) => `${o.label}|${i + 1}`);
   await sendWhatsAppRich({
-    leadId: lead.id, phone: lead.phone,
+    leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
     text, buttons, footer: 'HyperFlick • IPTV',
     ...(opts.length > 3 ? { listButton: 'Toque para escolher 👇' } : {}),
   });
@@ -131,16 +131,20 @@ async function askDevice(lead, greet = true) {
 
 // ---------- Entradas no quiz ----------
 // Número novo (tráfego pago) que mandou a frase-gatilho.
-export async function startWaQuiz({ phone, pushName, inboundText = '', inboundId = null, tag = 'trafego_pago', source = 'whatsapp' }) {
+export async function startWaQuiz({ phone, pushName, inboundText = '', inboundId = null, tag = 'trafego_pago', source = 'whatsapp', instanceId = null }) {
   const { data: lead, error } = await insertLeadSafe({
     name: pushName || 'Cliente',
     phone, stage: 'lead', source, tag,
     quiz: {}, wa_quiz_state: 'ask_device', name_confirmed: false,
+    ...(instanceId ? { instance_id: instanceId } : {}),
   });
   if (error) {
     console.error('startWaQuiz insert:', error.message);
     return null;
   }
+  // garante o roteamento já nesta conversa, mesmo se a coluna instance_id ainda
+  // não existir no banco (insertLeadSafe a remove): mantém em memória.
+  if (instanceId) lead.instance_id = instanceId;
   if (inboundText) {
     try { await logMessage({ leadId: lead.id, phone, direction: 'in', body: inboundText, messageId: inboundId }); }
     catch (e) { console.error('startWaQuiz log:', e.message); }
@@ -175,7 +179,7 @@ async function choosePlan(lead, planV) {
     await deliverPixToLead({ ...lead, plan: planV }, intro);
   } catch (e) {
     console.error('choosePlan pix:', e.message);
-    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text: `${nome ? nome + ', t' : 'T'}ive um probleminha pra gerar o Pix agora 😅 Já tô resolvendo e te mando em instantes!` });
+    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, text: `${nome ? nome + ', t' : 'T'}ive um probleminha pra gerar o Pix agora 😅 Já tô resolvendo e te mando em instantes!` });
   }
   return { handled: true };
 }
@@ -192,17 +196,18 @@ async function finishQuiz(lead, quiz, device, brand) {
   // mensagem de "gerando" é só cortesia — se falhar, NÃO impede o teste de sair
   try {
     await sendWhatsApp({
-      leadId: lead.id, phone: lead.phone,
+      leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
       text: `${nome ? 'Perfeito, ' + nome + '!' : 'Perfeito!'} 🚀 Seu app ideal é o *${app}* — gerando seu teste grátis... ⏳`,
     });
   } catch (e) { console.error('finishQuiz gerando msg:', e.message); }
 
   try {
+    // instance_id no spread → as credenciais saem pelo MESMO número
     await generateTestForLead({ ...lead, quiz, device, brand: brand === '_' ? null : brand, app });
     // Teste enviado. UMA mensagem curta com botão de compra (sem listar planos).
     await setState(lead.id, { wa_quiz_state: 'browsing' });
     await sendWhatsAppRich({
-      leadId: lead.id, phone: lead.phone,
+      leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
       text: 'Qualquer dúvida na instalação, me chama! 🧡\n\nE quando quiser liberar o acesso *completo*, é só tocar aqui embaixo 👇',
       buttons: [{ text: '💳 Quero assinar' }],
       footer: 'HyperFlick • IPTV',
@@ -212,7 +217,7 @@ async function finishQuiz(lead, quiz, device, brand) {
     await setState(lead.id, { wa_quiz_state: 'browsing' });
     try {
       await sendWhatsApp({
-        leadId: lead.id, phone: lead.phone,
+        leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
         text: `${nome ? nome + ', t' : 'T'}ive um probleminha pra gerar seu teste agora 😅 Já tô resolvendo e te mando o acesso em instantes! 🧡`,
       });
     } catch { /* sem instância */ }
@@ -291,12 +296,12 @@ export async function handleQuizReply(lead, text) {
     if (state === 'post_sale_name') {
       const name = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 60);
       if (name.length < 2 || /^\d+$/.test(name)) {
-        await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text: 'Pode me dizer seu *nome completo*? 😊' });
+        await sendWhatsApp({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, text: 'Pode me dizer seu *nome completo*? 😊' });
         return { handled: true };
       }
       await setState(lead.id, { name, name_confirmed: true, wa_quiz_state: 'done' });
       await sendWhatsApp({
-        leadId: lead.id, phone: lead.phone,
+        leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
         text: `Prontinho, ${name.split(' ')[0]}! ✅ Cadastro completo. Aproveite a HyperFlick e qualquer coisa é só chamar aqui. 🧡`,
       });
       return { handled: true };
@@ -315,7 +320,7 @@ export async function askNameAfterSale(lead) {
   if (!tagOk) return false;
   await setState(lead.id, { wa_quiz_state: 'post_sale_name' });
   await sendWhatsApp({
-    leadId: lead.id, phone: lead.phone,
+    leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
     text: 'Pra finalizar seu cadastro, como é seu *nome completo*? 😊',
   });
   return true;

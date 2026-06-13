@@ -9,6 +9,10 @@ import {
 import { generatePanelTest } from './panel.js';
 import { buildTestMessage } from './message.js';
 
+// "Digitando..." antes de cada mensagem do robô (mais humano, ajuda contra ban).
+// Configurável por TYPING_DELAY_MS no .env (padrão 3000).
+const TYPING_DELAY = config.uazapi.typingDelayMs;
+
 // Retorna a instância conectada a usar (default primeiro, senão a primeira conectada).
 export async function getActiveInstance() {
   const { data } = await sb()
@@ -19,6 +23,25 @@ export async function getActiveInstance() {
   if (!data || !data.length) return null;
   const connected = data.filter((i) => i.status === 'connected');
   return connected.find((i) => i.is_default) || connected[0] || null;
+}
+
+// Descobre QUAL instância recebeu uma mensagem (pra responder pelo MESMO número).
+// O webhook da uazapi traz `instance` (id da uazapi) e `data.owner` (telefone do
+// número conectado). Retorna o id interno da whatsapp_instances, ou null.
+export async function resolveInboundInstanceId({ uazapiId, ownerPhone }) {
+  try {
+    if (uazapiId) {
+      const { data } = await sb().from('whatsapp_instances').select('id').eq('uazapi_id', String(uazapiId)).maybeSingle();
+      if (data) return data.id;
+    }
+    if (ownerPhone) {
+      const p = normalizePhone(ownerPhone);
+      const { data } = await sb().from('whatsapp_instances').select('id,phone');
+      const hit = (data || []).find((i) => normalizePhone(i.phone) === p);
+      if (hit) return hit.id;
+    }
+  } catch (e) { /* sem match */ }
+  return null;
 }
 
 // Resolve a instância de envio: a escolhida (se conectada) ou a padrão.
@@ -35,7 +58,8 @@ export async function resolveInstance(instanceId) {
 }
 
 // Envia texto e registra na tabela messages. Lança erro se não houver instância conectada.
-export async function sendWhatsApp({ leadId, phone, text, instanceId }) {
+// delay: ms de "Digitando..." (padrão 3s); passe 0 pra enviar na hora (ex.: aviso ao admin).
+export async function sendWhatsApp({ leadId, phone, text, instanceId, delay = TYPING_DELAY }) {
   const inst = await resolveInstance(instanceId);
   if (!inst) {
     const e = new Error('Nenhuma instância WhatsApp conectada.');
@@ -45,7 +69,7 @@ export async function sendWhatsApp({ leadId, phone, text, instanceId }) {
   const number = normalizePhone(phone);
   let result, status = 'sent';
   try {
-    result = await uazapi.sendText(inst.token, number, text);
+    result = await uazapi.sendText(inst.token, number, text, { delay });
   } catch (err) {
     status = 'failed';
     await logMessage({ leadId, phone: number, direction: 'out', body: text, status });
@@ -61,7 +85,7 @@ export async function sendWhatsApp({ leadId, phone, text, instanceId }) {
 // Envia mídia (imagem) e opcionalmente botões, registrando na tabela messages.
 // Usa a instância conectada (ou a escolhida via instanceId). Lança erro (NO_INSTANCE) se não houver.
 // listButton: se informado, envia como LISTA (suporta 4+ opções) em vez de botões.
-export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', buttons = [], footer = '', listButton = '', instanceId }) {
+export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', buttons = [], footer = '', listButton = '', instanceId, delay = TYPING_DELAY }) {
   const inst = await resolveInstance(instanceId);
   if (!inst) { const e = new Error('Nenhuma instância WhatsApp conectada.'); e.code = 'NO_INSTANCE'; throw e; }
   const number = normalizePhone(phone);
@@ -77,20 +101,29 @@ export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', b
     return b.text; // botão de resposta
   }).filter(Boolean);
   const logBody = text || (image ? '[imagem]' : '') || (choices.length ? '[menu]' : '');
+  const isList = !!listButton; // lista (4+ opções) não suporta imagem embutida
 
   try {
-    // 1) imagem (com legenda só se não houver botões)
-    if (image) {
-      await uazapi.sendMedia(inst.token, number, { type: 'image', file: image, text: choices.length ? '' : text });
-    }
-    // 2) botões/lista (com o texto) — ou texto puro se não houve imagem
-    if (choices.length) {
+    if (choices.length && image && !isList) {
+      // imagem EMBUTIDA nos botões → 1 mensagem só (imageButton), em vez de
+      // mandar a foto e depois o menu separado.
       await uazapi.sendMenu(inst.token, number, {
-        text, choices, footerText: footer,
-        ...(listButton ? { type: 'list', listButton } : {}),
+        type: 'button', text, choices, footerText: footer, imageButton: image, delay,
       });
-    } else if (!image) {
-      await uazapi.sendText(inst.token, number, text);
+    } else {
+      // 1) imagem (com legenda só se não houver botões)
+      if (image) {
+        await uazapi.sendMedia(inst.token, number, { type: 'image', file: image, text: choices.length ? '' : text, delay });
+      }
+      // 2) botões/lista (com o texto) — ou texto puro se não houve imagem
+      if (choices.length) {
+        await uazapi.sendMenu(inst.token, number, {
+          text, choices, footerText: footer, delay,
+          ...(isList ? { type: 'list', listButton } : {}),
+        });
+      } else if (!image) {
+        await uazapi.sendText(inst.token, number, text, { delay });
+      }
     }
   } catch (err) {
     await logMessage({ leadId, phone: number, direction: 'out', body: logBody, status: 'failed' });
@@ -102,7 +135,7 @@ export async function sendWhatsAppRich({ leadId, phone, text = '', image = '', b
 
 // Envia uma mensagem de pagamento Pix. O código Pix e o link ficam SOMENTE nos
 // botões (copiar código + pagar pelo link) — nada no corpo, a pedido.
-export async function sendPixMessage({ leadId, phone, intro, plan, amount, pixCode, ticketUrl, footer }) {
+export async function sendPixMessage({ leadId, phone, intro, plan, amount, pixCode, ticketUrl, footer, instanceId }) {
   const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   const planLine = plan ? `\n\n💠 *Plano ${plan}* — R$ ${valor}` : `\n\n💠 *Valor:* R$ ${valor}`;
   const text =
@@ -110,7 +143,7 @@ export async function sendPixMessage({ leadId, phone, intro, plan, amount, pixCo
     `Toque em *📋 Copiar código Pix*, abra o app do seu banco e cole no Pix. Assim que o pagamento cair, seu acesso é liberado na hora! 🚀`;
   const buttons = [{ text: '📋 Copiar código Pix', copy: pixCode }];
   if (ticketUrl) buttons.push({ text: '🔗 Pagar pelo link', url: ticketUrl });
-  return sendWhatsAppRich({ leadId, phone, text, buttons, footer: footer || 'HyperFlick • IPTV' });
+  return sendWhatsAppRich({ leadId, phone, text, buttons, footer: footer || 'HyperFlick • IPTV', instanceId });
 }
 
 // Apps pagos (cobrados pelo desenvolvedor, à parte da mensalidade HyperFlick).
@@ -143,9 +176,9 @@ export async function addPaidAppExpenseIfNeeded({ lead, plan }) {
 // de o robô/disparo ficar mudo. Rode supabase/schema.sql pra ter as etiquetas.
 export async function insertLeadSafe(payload, select = '*') {
   let { data, error } = await sb().from('leads').insert(payload).select(select).single();
-  if (error && /tag|name_confirmed|could not find|does not exist|schema cache/i.test(error.message)) {
-    const { tag, name_confirmed, ...rest } = payload;
-    console.warn('insertLeadSafe: recriando sem tag/name_confirmed (rode o supabase/schema.sql):', error.message);
+  if (error && /tag|name_confirmed|instance_id|could not find|does not exist|schema cache/i.test(error.message)) {
+    const { tag, name_confirmed, instance_id, ...rest } = payload;
+    console.warn('insertLeadSafe: recriando sem colunas novas (rode o supabase/schema.sql):', error.message);
     ({ data, error } = await sb().from('leads').insert(rest).select(select).single());
   }
   return { data, error };
@@ -229,7 +262,7 @@ export async function generateTestForLead(lead) {
       text = `Olá ${(lead.name || '').split(' ')[0]}! ${test.message}\n\nQualquer dúvida, é só chamar aqui. 🧡`;
     }
     let whatsappSent = false, error = null;
-    try { await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text }); whatsappSent = true; }
+    try { await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text, instanceId: lead.instance_id }); whatsappSent = true; }
     catch (err) { error = err.message; }
     return {
       credentials: { username: lead.test_username, password: lead.test_password },
@@ -265,7 +298,7 @@ export async function generateTestForLead(lead) {
 
   let whatsappSent = false, error = null;
   try {
-    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text, instanceId: lead.instance_id });
     whatsappSent = true;
   } catch (err) {
     error = err.message;

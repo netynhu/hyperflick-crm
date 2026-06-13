@@ -199,7 +199,7 @@ router.post('/:id/message', async (req, res) => {
     if (!text) return res.status(400).json({ error: 'Mensagem vazia.' });
     const { data: lead, error } = await sb().from('leads').select('*').eq('id', req.params.id).single();
     if (error) throw error;
-    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, text });
+    await sendWhatsApp({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, text });
     res.json({ ok: true });
   } catch (err) { res.status(err.code === 'NO_INSTANCE' ? 409 : 500).json({ error: err.message }); }
 });
@@ -211,7 +211,7 @@ router.post('/:id/pix', async (req, res) => {
     if (error) throw error;
     const { plan, amount, pix } = await sendPixForLead(lead);
     const nome = (lead.name || '').split(' ')[0];
-    await sendPixMessage({ leadId: lead.id, phone: lead.phone, intro: `${nome}, aqui está o Pix do seu acesso completo na HyperFlick 🧡`, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
+    await sendPixMessage({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, intro: `${nome}, aqui está o Pix do seu acesso completo na HyperFlick 🧡`, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
     res.json({ ok: true, plan, amount, pixCode: pix.pixCode, ticketUrl: pix.ticketUrl });
   } catch (e) {
     const code = e.code === 'NO_MP' ? 400 : (e.code === 'NO_INSTANCE' ? 409 : 500);

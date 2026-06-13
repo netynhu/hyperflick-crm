@@ -70,24 +70,31 @@ export const uazapi = {
     return call('/instance/delete', { method: 'DELETE', token });
   },
   // Envia mensagem de texto. number = 5511999999999
-  sendText(token, number, text) {
-    return call('/send/text', { method: 'POST', token, body: { number, text, linkPreview: false } });
+  // delay (ms): durante o atraso o WhatsApp mostra "Digitando..." (mais humano).
+  sendText(token, number, text, { delay } = {}) {
+    return call('/send/text', { method: 'POST', token, body: { number, text, linkPreview: false, ...(delay ? { delay } : {}) } });
   },
   // Envia mídia (imagem/vídeo/documento). file = URL pública OU base64/data-uri.
   // type: 'image' | 'video' | 'document' | 'audio'
-  sendMedia(token, number, { type = 'image', file, text = '', docName } = {}) {
+  sendMedia(token, number, { type = 'image', file, text = '', docName, delay } = {}) {
     return call('/send/media', {
       method: 'POST', token,
-      body: { number, type, file, text, ...(docName ? { docName } : {}) },
+      body: { number, type, file, text, ...(docName ? { docName } : {}), ...(delay ? { delay } : {}) },
     });
   },
   // Envia menu com botões de resposta rápida ou lista de opções.
   // choices = ['Opção 1', 'Opção 2', ...]
   // type 'list' precisa de listButton (texto do botão que abre a lista).
-  sendMenu(token, number, { text, choices = [], footerText = '', type = 'button', listButton = '' } = {}) {
+  // imageButton: imagem EMBUTIDA nos botões (1 mensagem só, em vez de imagem + menu).
+  sendMenu(token, number, { text, choices = [], footerText = '', type = 'button', listButton = '', imageButton = '', delay } = {}) {
     return call('/send/menu', {
       method: 'POST', token,
-      body: { number, type, text, choices, footerText, ...(listButton ? { listButton } : {}) },
+      body: {
+        number, type, text, choices, footerText,
+        ...(listButton ? { listButton } : {}),
+        ...(imageButton ? { imageButton } : {}),
+        ...(delay ? { delay } : {}),
+      },
     });
   },
   // Registra o webhook para receber mensagens de entrada
