@@ -100,11 +100,32 @@ async function markSent(leadId, type) {
   if (error) console.error('markSent (followups):', error.message, '(rodou o schema atualizado?)');
 }
 
+// (#3) ~1h após o teste: pergunta se instalou / está curtindo.
 async function doWelcome(lead) {
   const nome = (lead.name || '').split(' ')[0];
-  const text = `Oi ${nome}! Aqui é da HyperFlick 🧡\nConseguiu instalar e já está assistindo? Se tiver qualquer dificuldade, me chama aqui que eu te ajudo a deixar tudo 100%. 📺`;
+  const text = `Oi ${nome}! Aqui é da HyperFlick 🧡\nTá curtindo o teste? Conseguiu instalar e já está assistindo? 📺\n\nSe travou em algo ou tem qualquer dúvida, me chama aqui que eu deixo tudo 100% pra você. 😊`;
   await sendWhatsApp({ leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id, text });
   await markSent(lead.id, 'welcome');
+}
+
+// (#4) ~1h ANTES de expirar: avisa que falta pouco e oferece o plano MENSAL com
+// botão "Assinar agora". O clique cai no quiz (offer_mensal) → gera o Pix na hora.
+async function doExpiringOffer(lead, exp) {
+  const amount = config.prices.mensal;
+  const valor = Number(amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  const nome = (lead.name || '').split(' ')[0];
+  // marca o estado pra que o clique no botão vá direto pro Pix do mensal
+  try { await sb().from('leads').update({ wa_quiz_state: 'offer_mensal' }).eq('id', lead.id); } catch (e) { /* coluna pendente */ }
+  await sendWhatsAppRich({
+    leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
+    text:
+      `${nome}, seu teste da HyperFlick *acaba às ${brTime(exp)}* ⏳\n\n` +
+      `Pra não perder +800 canais, +60 mil filmes e séries e o futebol ao vivo, ative seu *Plano Mensal* por *R$ ${valor}*.\n\n` +
+      `É só tocar abaixo que eu te mando o Pix na hora 👇`,
+    buttons: [{ text: `💳 Assinar agora — R$ ${valor}` }],
+    footer: 'HyperFlick • IPTV',
+  });
+  await markSent(lead.id, 'expiring');
 }
 
 async function doPix(lead, kind, exp) {
@@ -185,12 +206,12 @@ export async function runFollowups() {
       if (now >= exp && l.stage === 'testando') {
         await sb().from('leads').update({ stage: 'followup' }).eq('id', l.id);
       }
-      // Cadência FIXA por tempo desde a criação do teste — 1 envio por execução,
-      // na ordem welcome → oferta(Pix) → winback(Pix).
+      // Régua: welcome (1h após) → oferta "falta 1h" (1h antes de expirar, plano
+      // mensal com botão) → winback (após expirar, Pix). 1 envio por execução.
       if (!sent.welcome && now >= created + F.welcomeHours * H) {
         await doWelcome(l); actions.push(`${l.id}:welcome`);
-      } else if (!sent.expiring && now >= created + F.pixHours * H) {
-        await doPix(l, 'expiring', exp); actions.push(`${l.id}:expiring`);
+      } else if (!sent.expiring && now >= exp - F.expiringBeforeHours * H) {
+        await doExpiringOffer(l, exp); actions.push(`${l.id}:expiring`);
       } else if (!sent.winback && now >= created + F.winbackHours * H && now >= exp) {
         await doPix(l, 'winback', exp); actions.push(`${l.id}:winback`);
       } else if (

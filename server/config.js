@@ -26,14 +26,16 @@ export const config = {
     panelUrl: process.env.IPTV_PANEL_URL || '',
   },
 
-  // Régua de follow-up: horas após a CRIAÇÃO do teste (cadência fixa por tempo).
-  // Padrões pensados para um teste de ~4h: boas-vindas 1h, oferta/Pix 3h, winback 24h.
+  // Régua de follow-up:
+  //  • welcome: N horas APÓS o teste (pergunta se instalou/está curtindo)
+  //  • expiring: N horas ANTES de expirar (avisa + oferta do plano mensal c/ botão)
+  //  • winback: N horas após a criação, já expirado (reativação com Pix)
+  //  • lost: N horas após o winback sem resposta → lead vira PERDIDO
   followup: {
     welcomeHours: num(process.env.FOLLOWUP_WELCOME_HOURS, 1),
-    pixHours: num(process.env.FOLLOWUP_PIX_HOURS, 3),
+    expiringBeforeHours: num(process.env.FOLLOWUP_EXPIRING_BEFORE_HOURS, 1),
     winbackHours: num(process.env.FOLLOWUP_WINBACK_HOURS, 24),
-    // Sem resposta após o ÚLTIMO follow-up (winback) por N horas → lead vira PERDIDO
-    lostAfterHours: num(process.env.FOLLOWUP_LOST_HOURS, 48),
+    lostAfterHours: num(process.env.FOLLOWUP_LOST_HOURS, 10),
   },
 
   // Painel IPTV (uhdpainel) — gera o teste real via endpoint de chatbot

@@ -19,7 +19,7 @@ const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-
 const money = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
 // Estados em que a resposta do cliente é consumida pelo quiz.
-const ACTIVE_STATES = ['ask_device', 'ask_brand', 'ask_mobile', 'generating', 'browsing', 'ask_plan', 'await_payment', 'post_sale_name'];
+const ACTIVE_STATES = ['ask_device', 'ask_brand', 'ask_mobile', 'ask_install', 'generating', 'browsing', 'ask_plan', 'offer_mensal', 'await_payment', 'post_sale_name'];
 export const isQuizActive = (state) => ACTIVE_STATES.includes(state);
 
 // ---------- Configuração (settings.wa_quiz) ----------
@@ -110,23 +110,43 @@ async function setState(leadId, patch) {
 
 // Pergunta com menu: ≤3 opções como botões; 4+ como lista. O texto NÃO lista as
 // opções — elas vão só nos botões clicáveis (choice "label|id").
-async function askMenu(lead, text, opts) {
+// listLabel: texto do botão que abre a lista (4+ opções).
+async function askMenu(lead, text, opts, listLabel = 'Toque para escolher 👇') {
   const buttons = opts.map((o, i) => `${o.label}|${i + 1}`);
   await sendWhatsAppRich({
     leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
     text, buttons, footer: 'HyperFlick • IPTV',
-    ...(opts.length > 3 ? { listButton: 'Toque para escolher 👇' } : {}),
+    ...(opts.length > 3 ? { listButton: listLabel } : {}),
   });
 }
 
 const firstName = (lead) => (lead.name || '').split(' ')[0] || '';
 
-// Primeira pergunta do funil: onde vai assistir (com a saudação embutida).
+// Guia de instalação por app (todos os apps que recomendamos). Foca em ACHAR e
+// INSTALAR o app — o login (Xtream/M3U/código) vem na mensagem do teste depois.
+const INSTALL_GUIDE = {
+  'IPTV Smarters':
+    '📲 *Como instalar o IPTV Smarters:*\n1️⃣ Abra a loja de apps da sua TV/aparelho\n2️⃣ Procure por *IPTV Smarters* (ou *Smarters Player Lite*) e instale\n3️⃣ Abra o app e deixe na tela de *“Login com Xtream Codes”*',
+  'Smarters IPTV':
+    '💻 *Como assistir no PC/Notebook:*\n1️⃣ No navegador, acesse *https://webtv.pro* (ou instale o *IPTV Smarters* no celular)\n2️⃣ Escolha *“Login com Xtream Codes”*',
+  'RP725':
+    '📲 *Como instalar o RP725:*\n1️⃣ Abra a *Play Store* do seu aparelho\n2️⃣ Procure por *RP725* e instale\n3️⃣ Abra o app na tela inicial (vou te passar o código + login no próximo passo)',
+  'XC IPTV':
+    '📲 *Como instalar o XC IPTV:*\n1️⃣ Abra a loja de apps da sua TV\n2️⃣ Procure por *XC IPTV* e instale\n3️⃣ Abra o app e escolha *“Xtream Codes / Login”*',
+  'Assist Plus':
+    '📲 *Como instalar o Assist Plus:*\n1️⃣ Abra a loja de apps do seu aparelho (Fire TV/Roku/Smart TV)\n2️⃣ Procure por *Assist Plus* e instale\n3️⃣ Abra o app — ele vai pedir uma *lista* (eu te mando no próximo passo)',
+  'VU IPTV Player':
+    '📱 *Como instalar no iPhone/iPad:*\n1️⃣ Abra a *App Store*\n2️⃣ Procure por *VU IPTV Player* e instale\n3️⃣ Abra o app',
+};
+const installGuide = (app) => INSTALL_GUIDE[app]
+  || `📲 Procure por *${app}* na loja de apps do seu aparelho e instale. Depois abra o app na tela inicial.`;
+
+// Primeira pergunta do funil: ESCOLHER DISPOSITIVO (com a saudação embutida).
 async function askDevice(lead, greet = true) {
   const head = greet
     ? 'Oi! Que bom te ver por aqui 🧡\n\nVocê garantiu um *teste grátis* da *HyperFlick* — +800 canais, +60 mil filmes e séries e futebol ao vivo, tudo num app só e sem travar. 📺⚽\n\n'
     : '';
-  await askMenu(lead, `${head}Pra começar, *onde você vai assistir?*`, DEVICES);
+  await askMenu(lead, `${head}Pra começar, *escolha o dispositivo* onde você vai assistir 👇`, DEVICES, '📺 Escolher dispositivo');
 }
 
 // ---------- Entradas no quiz ----------
@@ -184,36 +204,51 @@ async function choosePlan(lead, planV) {
   return { handled: true };
 }
 
-// Marca/brand definidos → grava o app recomendado, gera o teste e segue pro
-// "browsing" (NÃO empurra os planos; deixa o cliente testar).
-async function finishQuiz(lead, quiz, device, brand) {
+// Marca/brand definidos → grava o app recomendado e ENSINA A INSTALAR. O teste
+// NÃO é gerado aqui: só depois que o cliente confirmar que instalou (ask_install).
+async function recommendAppAndAskInstall(lead, quiz, device, brand) {
   const app = APP_RULES[`${device}:${brand}`] || APP_RULES[`${device}:_`] || 'XC IPTV';
   quiz.device = device;
   if (brand !== '_') quiz.brand = brand;
-  await setState(lead.id, { quiz, device, brand: brand === '_' ? null : brand, app, wa_quiz_state: 'generating' });
+  await setState(lead.id, { quiz, device, brand: brand === '_' ? null : brand, app, wa_quiz_state: 'ask_install' });
+  lead.app = app;
   const nome = firstName(lead);
+  await sendWhatsAppRich({
+    leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
+    text:
+      `${nome ? 'Perfeito, ' + nome + '!' : 'Perfeito!'} Seu app ideal é o *${app}* 📲\n\n` +
+      `${installGuide(app)}\n\n` +
+      `👉 Assim que *instalar o app*, toque em *✅ Já instalei* que eu libero seu *teste grátis* na hora!`,
+    buttons: [{ text: '✅ Já instalei' }, { text: '❓ Tô com dúvida' }],
+    footer: 'HyperFlick • IPTV',
+  });
+  return { handled: true };
+}
 
-  // mensagem de "gerando" é só cortesia — se falhar, NÃO impede o teste de sair
+// Cliente confirmou que instalou → AGORA sim gera o teste e envia as credenciais.
+async function generateTestNow(lead) {
+  await setState(lead.id, { wa_quiz_state: 'generating' });
+  const nome = firstName(lead);
   try {
     await sendWhatsApp({
       leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
-      text: `${nome ? 'Perfeito, ' + nome + '!' : 'Perfeito!'} 🚀 Seu app ideal é o *${app}* — gerando seu teste grátis... ⏳`,
+      text: `Show${nome ? ', ' + nome : ''}! 🚀 Gerando seu *teste grátis*... um instante. ⏳`,
     });
-  } catch (e) { console.error('finishQuiz gerando msg:', e.message); }
+  } catch (e) { console.error('generateTestNow gerando msg:', e.message); }
 
   try {
     // instance_id no spread → as credenciais saem pelo MESMO número
-    await generateTestForLead({ ...lead, quiz, device, brand: brand === '_' ? null : brand, app });
+    await generateTestForLead({ ...lead });
     // Teste enviado. UMA mensagem curta com botão de compra (sem listar planos).
     await setState(lead.id, { wa_quiz_state: 'browsing' });
     await sendWhatsAppRich({
       leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
-      text: 'Qualquer dúvida na instalação, me chama! 🧡\n\nE quando quiser liberar o acesso *completo*, é só tocar aqui embaixo 👇',
+      text: 'Pronto! É só colocar esses dados no app e começar a assistir. 🍿\n\nQualquer dúvida me chama — e quando quiser liberar o acesso *completo*, toque aqui embaixo 👇',
       buttons: [{ text: '💳 Quero assinar' }],
       footer: 'HyperFlick • IPTV',
     });
   } catch (e) {
-    console.error('finishQuiz generateTest:', e.message);
+    console.error('generateTestNow generateTest:', e.message);
     await setState(lead.id, { wa_quiz_state: 'browsing' });
     try {
       await sendWhatsApp({
@@ -249,24 +284,56 @@ export async function handleQuizReply(lead, text) {
         await askMenu(lead, 'Show! 📱 *Seu celular é Android ou iPhone?*', MOBILES);
         return { handled: true };
       }
-      return finishQuiz(lead, quiz, opt.v, '_');
+      return recommendAppAndAskInstall(lead, quiz, opt.v, '_');
     }
 
     if (state === 'ask_brand') {
       const opt = matchOption(BRANDS, text);
       if (!opt) { await askMenu(lead, 'Toque na *marca da sua TV* 👇', BRANDS); return { handled: true }; }
-      return finishQuiz(lead, quiz, 'smarttv', opt.v);
+      return recommendAppAndAskInstall(lead, quiz, 'smarttv', opt.v);
     }
 
     if (state === 'ask_mobile') {
       const opt = matchOption(MOBILES, text);
       if (!opt) { await askMenu(lead, 'É *Android ou iPhone?* 👇', MOBILES); return { handled: true }; }
-      return finishQuiz(lead, quiz, 'celular', opt.v);
+      return recommendAppAndAskInstall(lead, quiz, 'celular', opt.v);
+    }
+
+    if (state === 'ask_install') {
+      // quer assinar já, sem testar → mostra os planos
+      if (buy) return offerPlans(lead);
+      const t = norm(text);
+      const installed = /instalei|instalad|^sim\b|pronto|consegui|baixei|^ja\b|^ok\b|feito|^1\b|✅/.test(t);
+      const doubt = /duvida|nao consegui|^nao\b|ajuda|^como|travou|dificuldade|^2\b|❓|erro/.test(t);
+      if (installed) return generateTestNow(lead);
+      if (doubt) {
+        await sendWhatsApp({
+          leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
+          text: `Sem problema! 🧡 Me conta em qual passo você travou que eu te ajudo.\n\n${installGuide(lead.app)}\n\nQuando conseguir, é só tocar em *✅ Já instalei*.`,
+        });
+        return { handled: true };
+      }
+      // não entendeu → reapresenta o botão
+      await sendWhatsAppRich({
+        leadId: lead.id, phone: lead.phone, instanceId: lead.instance_id,
+        text: 'Conseguiu instalar o app? Toque no botão abaixo 👇',
+        buttons: [{ text: '✅ Já instalei' }, { text: '❓ Tô com dúvida' }],
+        footer: 'HyperFlick • IPTV',
+      });
+      return { handled: true };
     }
 
     if (state === 'generating') {
       // teste ainda saindo; segura a ansiedade sem duplicar
       return { handled: true };
+    }
+
+    if (state === 'offer_mensal') {
+      // oferta do "falta 1h" (plano mensal). Clicou "Assinar agora" → Pix do mensal.
+      const opt = matchOption(planOptions(), text);
+      if (opt) return choosePlan(lead, opt.v);
+      if (buy) return choosePlan(lead, 'mensal');
+      return { handled: false };
     }
 
     if (state === 'browsing') {
