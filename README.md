@@ -142,17 +142,32 @@ qualifica por botões/listas: nome → como assiste hoje → aparelho → marca 
 - Rode de novo o `supabase/schema.sql` (cria a coluna `leads.wa_quiz_state`).
 - Mensagens avulsas de números desconhecidos continuam **fora** do CRM.
 
+## Central de disparos (contatos, modelos e plano de vendas)
+
+A aba **Mensagens** é uma central com 5 seções:
+
+- **📇 Contatos** — base permanente de números: toda planilha subida (e todo disparo) entra
+  aqui com **contagem de disparos por número**, origem e último disparo. Filtros: novos
+  (nunca disparados), frios (30+ dias) e opt-out. Quem responde **"PARAR"** sai sozinho da base.
+- **🧩 Modelos** — mensagens pré-configuradas com preview do WhatsApp. O `schema.sql` semeia a
+  régua do plano de vendas (Dia 1/3/5/7 + recuperação). `{nome}` personaliza e
+  `{opção A|opção B}` sorteia uma variação por mensagem (anti-bloqueio).
+- **🎯 Plano de vendas** — régua de 4 toques pronta, calculadora de meta (faturamento →
+  disparos/dia) e regras de ouro anti-banimento.
+
 ## Disparos em massa (planilha + agendamento + anti-ban)
 
 Em **CRM → Mensagens → 🚀 Disparo em massa**, monte o disparo em 5 passos:
-**1) Destinatários** (planilha CSV/TXT/Excel, por etapa ou todos os leads — `{nome}` personaliza),
+**1) Destinatários** (planilha CSV/TXT/Excel, **base de contatos** — todos/novos/frios —,
+por etapa ou todos os leads — `{nome}` personaliza),
 **2) Número que dispara** (qualquer instância conectada — dica: chip separado pra disparo),
 **3) Velocidade**: intervalo **aleatório** entre mensagens (padrão **20–180s**, sorteado a cada
-envio — nunca dispara mais rápido que isso), **4) Quando** (agora ou agendado) e **5) Mensagem**.
+envio — nunca dispara mais rápido que isso), **4) Quando** (agora ou agendado + **janela de
+envio** 8h–21h: fora dela a fila pausa e retoma sozinha) e **5) Mensagem**.
 A fila mostra progresso, ETA e permite pausar/retomar/cancelar.
 
-- Rode de novo o `supabase/schema.sql` (cria `broadcasts`, `broadcast_recipients` e as colunas
-  `instance_id` / `delay_min_s` / `delay_max_s` / `next_send_at`).
+- Rode de novo o `supabase/schema.sql` (cria `contacts`, `message_templates` com os modelos,
+  `broadcasts`, `broadcast_recipients` e as colunas de janela/intervalo/instância).
 - **Importante:** aponte um cron de **1 minuto** para
   `https://SEU-DOMINIO/api/cron/broadcast?token=SEU_CRON_SECRET` — cada chamada envia no máximo
   1 mensagem por disparo e respeita o intervalo sorteado (espaçamento real = max(cron, sorteio)).

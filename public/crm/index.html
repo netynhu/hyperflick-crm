@@ -554,12 +554,12 @@ async function saveNewLead() {
   catch (e) { toast('Erro: ' + e.message); btn.disabled = false; btn.textContent = 'Adicionar lead'; }
 }
 
-/* ===================== MENSAGENS (avulsa + disparo em massa) ===================== */
-let MSGTAB = 'single'; // single | mass
+/* ===================== MENSAGENS (avulsa + disparo + contatos + modelos + plano) ===================== */
+let MSGTAB = 'single'; // single | mass | contacts | templates | plan
 let MSG = { text: '', footer: '', image: '', buttons: [], stageCounts: {}, total: 0 }; // composer compartilhado
 let SINGLE = { instanceId: '', number: '' };
-let MASS = { target: 'planilha', sheet: { recipients: [], invalid: 0, fileName: '' }, stage: 'lead', instanceId: '', delayMin: 20, delayMax: 180, schedule: 'now', when: '' };
-let BCASTS = [], INSTANCES = [];
+let MASS = { target: 'planilha', sheet: { recipients: [], invalid: 0, fileName: '' }, saveToBase: true, baseFilter: 'ativos', coldDays: 30, stage: 'lead', instanceId: '', delayMin: 20, delayMax: 180, schedule: 'now', when: '', winStart: 8, winEnd: 21 };
+let BCASTS = [], INSTANCES = [], TEMPLATES = [], CSTATS = null, CONTACTS = [], CFILTER = 'all', CSEARCH = '';
 
 async function loadMsgs() {
   // contagem por etapa para o seletor de destinatários
@@ -571,9 +571,11 @@ async function loadMsgs() {
   if (!INSTANCES.find(i => i.id === SINGLE.instanceId)) SINGLE.instanceId = def?.id || '';
   if (!INSTANCES.find(i => i.id === MASS.instanceId)) MASS.instanceId = def?.id || '';
   try { BCASTS = await api('/messages/broadcasts'); } catch (e) { BCASTS = []; }
+  try { TEMPLATES = await api('/templates'); } catch (e) { TEMPLATES = []; }
+  try { CSTATS = await api('/contacts/stats'); } catch (e) { CSTATS = null; }
   renderMsgs();
 }
-function msgTab(t) { MSGTAB = t; renderMsgs(); }
+function msgTab(t) { MSGTAB = t; renderMsgs(); if (t === 'contacts') loadContacts(); }
 function sendLabel() { return MSGTAB === 'single' ? 'Enviar mensagem' : (MASS.schedule === 'later' ? '🗓 Programar disparo' : '🚀 Iniciar disparo'); }
 
 function instLabel(i) { return (i.phone || i.name) + (i.is_default ? ' · padrão' : ''); }
@@ -586,11 +588,19 @@ function instSelect(obj) {
 }
 
 function renderMsgs() {
-  document.getElementById('msgs').innerHTML = `
-  <div class="seg" style="margin-bottom:18px">
-    <button class="${MSGTAB === 'single' ? 'on' : ''}" onclick="msgTab('single')">✉️ Mensagem avulsa</button>
+  const tabs = `
+  <div class="seg" style="margin-bottom:18px;flex-wrap:wrap">
+    <button class="${MSGTAB === 'single' ? 'on' : ''}" onclick="msgTab('single')">✉️ Avulsa</button>
     <button class="${MSGTAB === 'mass' ? 'on' : ''}" onclick="msgTab('mass')">🚀 Disparo em massa</button>
-  </div>
+    <button class="${MSGTAB === 'contacts' ? 'on' : ''}" onclick="msgTab('contacts')">📇 Contatos</button>
+    <button class="${MSGTAB === 'templates' ? 'on' : ''}" onclick="msgTab('templates')">🧩 Modelos</button>
+    <button class="${MSGTAB === 'plan' ? 'on' : ''}" onclick="msgTab('plan')">🎯 Plano de vendas</button>
+  </div>`;
+  if (MSGTAB === 'contacts') { document.getElementById('msgs').innerHTML = tabs + contactsView(); return; }
+  if (MSGTAB === 'templates') { document.getElementById('msgs').innerHTML = tabs + templatesView(); return; }
+  if (MSGTAB === 'plan') { document.getElementById('msgs').innerHTML = tabs + planView(); calcPlan(); return; }
+  document.getElementById('msgs').innerHTML = `
+  ${tabs}
   <div class="compose">
     <div>
       ${MSGTAB === 'single' ? singleCards() : massCards()}
@@ -624,8 +634,9 @@ function massCards() {
   <div class="card-box" style="margin-bottom:16px">
     <h4>1 · Destinatários</h4>
     <div class="desc">De onde vêm os números deste disparo.</div>
-    <div class="seg" style="margin-bottom:12px">
+    <div class="seg" style="margin-bottom:12px;flex-wrap:wrap">
       <button class="${MASS.target === 'planilha' ? 'on' : ''}" onclick="setMassTarget('planilha')">📄 Planilha</button>
+      <button class="${MASS.target === 'base' ? 'on' : ''}" onclick="setMassTarget('base')">📇 Base de contatos</button>
       <button class="${MASS.target === 'stage' ? 'on' : ''}" onclick="setMassTarget('stage')">Por etapa</button>
       <button class="${MASS.target === 'todos' ? 'on' : ''}" onclick="setMassTarget('todos')">Todos os leads</button>
     </div>
@@ -654,6 +665,14 @@ function massCards() {
     ${MASS.schedule === 'later'
       ? `<input type="datetime-local" value="${MASS.when}" onchange="MASS.when=this.value" style="max-width:230px">`
       : '<p style="color:var(--muted);font-size:12.5px">A primeira mensagem sai na hora; as demais seguem o intervalo sorteado.</p>'}
+    <div style="border-top:1px solid var(--border-2);margin-top:12px;padding-top:12px">
+      <label style="font-size:12px;color:var(--muted);font-weight:600">🕗 Janela de envio (horário de Brasília) — fora dela o disparo pausa sozinho e retoma no dia seguinte</label>
+      <div class="row" style="max-width:280px;margin-top:8px;align-items:center">
+        <select onchange="MASS.winStart=Number(this.value)">${Array.from({length:24},(_,h)=>`<option value="${h}" ${MASS.winStart===h?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}</select>
+        <span style="flex:0 0 auto;color:var(--muted);font-size:12px">até</span>
+        <select onchange="MASS.winEnd=Number(this.value)">${Array.from({length:24},(_,h)=>`<option value="${h}" ${MASS.winEnd===h?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}</select>
+      </div>
+    </div>
   </div>`;
 }
 function massTargetBody() {
@@ -666,13 +685,27 @@ function massTargetBody() {
         ${sh.recipients.length ? `<span class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${sh.recipients.length} número(s)</span>` : '<span style="color:var(--faint);font-size:12px">CSV, TXT ou Excel (.xlsx)</span>'}
         ${sh.invalid ? `<span class="chip" style="color:var(--yellow);border-color:var(--yellow-bg);background:var(--yellow-bg)">${sh.invalid} ignorado(s)</span>` : ''}
       </div>
-      <p style="color:var(--muted);font-size:12px;margin-top:8px">Coluna com o telefone (DDD + número) e, opcional, coluna com o nome — use <b>{nome}</b> no texto pra personalizar. ${sh.fileName ? `Arquivo: <b>${esc(sh.fileName)}</b>` : ''}</p>`;
+      <p style="color:var(--muted);font-size:12px;margin-top:8px">Coluna com o telefone (DDD + número) e, opcional, coluna com o nome — use <b>{nome}</b> no texto pra personalizar. ${sh.fileName ? `Arquivo: <b>${esc(sh.fileName)}</b>` : ''}</p>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);margin-top:8px;font-weight:600"><input type="checkbox" ${MASS.saveToBase ? 'checked' : ''} onchange="MASS.saveToBase=this.checked" style="width:auto">Salvar esses números na <b>base de contatos</b> (recomendado)</label>`;
+  }
+  if (MASS.target === 'base') {
+    const s = CSTATS;
+    if (!s) return '<div class="chip" style="color:var(--yellow);border-color:var(--yellow-bg);background:var(--yellow-bg)">Base de contatos indisponível — rode o supabase/schema.sql.</div>';
+    const opts = [
+      ['ativos', `Todos os ativos (${s.ativos})`],
+      ['never', `🆕 Nunca receberam disparo (${s.never})`],
+      ['cold', `🧊 Frios — sem disparo há ${MASS.coldDays}+ dias (${s.cold})`],
+    ];
+    return `
+      <select onchange="MASS.baseFilter=this.value;updEta()">${opts.map(([v, l]) => `<option value="${v}" ${MASS.baseFilter === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px">Quem pediu pra sair (opt-out: ${s.optOut}) <b>nunca</b> entra no disparo. Gerencie a base na aba <b>📇 Contatos</b>.</p>`;
   }
   if (MASS.target === 'stage') return `<select onchange="MASS.stage=this.value;updEta()">${STAGES.map(s => `<option value="${s.id}" ${MASS.stage === s.id ? 'selected' : ''}>${s.label} (${sc[s.id] || 0})</option>`).join('')}</select>`;
   return `<div class="chip">Todos os ${MSG.total || 0} leads do CRM com WhatsApp</div>`;
 }
 function massCount() {
   if (MASS.target === 'planilha') return MASS.sheet.recipients.length;
+  if (MASS.target === 'base') { const s = CSTATS || {}; return { ativos: s.ativos, never: s.never, cold: s.cold }[MASS.baseFilter] || 0; }
   if (MASS.target === 'stage') return (MSG.stageCounts || {})[MASS.stage] || 0;
   return MSG.total || 0;
 }
@@ -693,7 +726,12 @@ function composerCard() {
   return `
   <div class="card-box">
     <h4>${MSGTAB === 'mass' ? '5 · ' : ''}Mensagem</h4>
-    <div class="desc">Texto, imagem e até 3 botões de resposta.${MSGTAB === 'mass' ? ' <b>{nome}</b> vira o primeiro nome do destinatário.' : ''}</div>
+    <div class="desc">Texto, imagem e até 3 botões de resposta.${MSGTAB === 'mass' ? ' <b>{nome}</b> vira o primeiro nome do destinatário e <b>{opção A|opção B}</b> sorteia uma variação por mensagem (anti-bloqueio).' : ''}</div>
+    ${TEMPLATES.length ? `<div class="field"><label>🧩 Começar de um modelo pronto</label>
+      <div class="row">
+        <select id="tplPick">${['<option value="">— escolher modelo —</option>', ...TEMPLATES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`)].join('')}</select>
+        <button class="btn sm ghost" style="flex:0 0 auto" onclick="useTemplate(document.getElementById('tplPick').value)">Aplicar</button>
+      </div></div>` : ''}
     <div class="field"><label>Texto</label><textarea id="msgText" rows="5" placeholder="Escreva sua mensagem... (use *negrito* do WhatsApp)" oninput="MSG.text=this.value;renderMsgPreview()">${esc(MSG.text || '')}</textarea></div>
     <div class="field"><label>Imagem (opcional)</label>
       <div class="btn-row">
@@ -708,7 +746,30 @@ function composerCard() {
       ${MSG.buttons.length < 3 ? `<button class="btn sm ghost" style="margin-top:8px" onclick="addBtn()">+ Adicionar botão</button>` : ''}
     </div>
     <div class="field"><label>Rodapé (opcional)</label><input id="msgFooter" placeholder="Ex.: HyperFlick • IPTV" value="${esc(MSG.footer || '')}" oninput="MSG.footer=this.value;renderMsgPreview()"></div>
+    <button class="btn sm ghost" onclick="saveAsTemplate()">💾 Salvar como modelo</button>
   </div>`;
+}
+function useTemplate(id) {
+  const t = TEMPLATES.find(x => x.id === id);
+  if (!t) { toast('Escolha um modelo.'); return; }
+  MSG.text = t.message_text || '';
+  MSG.footer = t.footer || '';
+  MSG.image = t.image || '';
+  MSG.buttons = (Array.isArray(t.buttons) ? t.buttons : []).map(b => ({ text: b.text || '' }));
+  if (MSGTAB !== 'mass' && MSGTAB !== 'single') MSGTAB = 'mass';
+  renderMsgs();
+  toast('Modelo aplicado: ' + t.name);
+}
+async function saveAsTemplate() {
+  const name = prompt('Nome do modelo:', '');
+  if (!name) return;
+  if (!(MSG.text || '').trim() && !MSG.image) { toast('Escreva a mensagem antes de salvar.'); return; }
+  try {
+    await api('/templates', { method: 'POST', body: JSON.stringify({ name, text: MSG.text, image: MSG.image, footer: MSG.footer, buttons: MSG.buttons.filter(b => b.text.trim()) }) });
+    TEMPLATES = await api('/templates').catch(() => TEMPLATES);
+    renderMsgs();
+    toast('Modelo salvo ✓');
+  } catch (e) { toast('Erro: ' + e.message); }
 }
 function btnList() {
   return MSG.buttons.map((b, i) => `<div class="btn-row"><input value="${esc(b.text)}" placeholder="Texto do botão ${i + 1}" oninput="MSG.buttons[${i}].text=this.value;renderMsgPreview()"><button class="btn sm red" onclick="rmBtn(${i})">×</button></div>`).join('') || '';
@@ -811,6 +872,173 @@ async function refreshBcasts() { try { BCASTS = await api('/messages/broadcasts'
 async function bcAction(id, act) { try { await api(`/messages/broadcasts/${id}/${act}`, { method: 'POST', body: JSON.stringify({}) }); toast('Disparo atualizado'); refreshBcasts(); } catch (e) { toast('Erro: ' + e.message); } }
 async function bcDelete(id) { if (!confirm('Excluir este disparo do histórico?')) return; try { await api('/messages/broadcasts/' + id, { method: 'DELETE' }); refreshBcasts(); } catch (e) { toast('Erro: ' + e.message); } }
 
+/* ===================== 📇 CONTATOS (base de disparo) ===================== */
+function contactsView() {
+  const s = CSTATS;
+  return `
+  ${s ? `<div class="grid-stats">
+    <div class="stat"><div class="lbl">📇 Total na base</div><div class="val">${s.total}</div></div>
+    <div class="stat"><div class="lbl">🆕 Nunca disparados</div><div class="val purple">${s.never}</div></div>
+    <div class="stat"><div class="lbl">🧊 Frios (30+ dias)</div><div class="val orange">${s.cold}</div></div>
+    <div class="stat"><div class="lbl">🚫 Opt-out</div><div class="val red">${s.optOut}</div></div>
+  </div>` : '<div class="card-box"><p style="color:var(--yellow);font-size:13px">⚠️ Base de contatos indisponível — rode o <b>supabase/schema.sql</b> no SQL Editor do Supabase pra ativar.</p></div>'}
+  <div class="card-box">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input placeholder="🔎 Buscar por nome ou telefone..." value="${esc(CSEARCH)}" oninput="CSEARCH=this.value" onkeydown="if(event.key==='Enter')loadContacts()" style="max-width:280px">
+      <div class="seg">
+        ${[['all', 'Todos'], ['never', '🆕 Novos'], ['cold', '🧊 Frios'], ['optout', '🚫 Opt-out']].map(([v, l]) => `<button class="${CFILTER === v ? 'on' : ''}" onclick="CFILTER='${v}';loadContacts()">${l}</button>`).join('')}
+      </div>
+      <span style="flex:1"></span>
+      <label class="btn sm ghost" style="display:inline-flex">📄 Importar planilha<input type="file" accept=".csv,.txt,.xlsx,.xls" class="hidden" onchange="onContactsImport(this)"></label>
+    </div>
+    <div id="contactsBody" style="margin-top:14px"><p style="color:var(--muted);font-size:13px">Carregando...</p></div>
+  </div>`;
+}
+async function loadContacts() {
+  const el = document.getElementById('contactsBody'); if (!el) return;
+  try {
+    CONTACTS = await api(`/contacts?filter=${CFILTER}${CSEARCH ? '&search=' + encodeURIComponent(CSEARCH) : ''}`);
+    el.innerHTML = contactsTable();
+  } catch (e) { el.innerHTML = `<p style="color:var(--red);font-size:13px">${esc(e.message)}</p>`; }
+}
+function contactsTable() {
+  if (!CONTACTS.length) return '<p style="color:var(--muted);font-size:13px">Nenhum contato nesse filtro. Importe uma planilha ou faça um disparo — os números entram aqui automaticamente.</p>';
+  return `<table>
+    <thead><tr><th>Telefone</th><th>Nome</th><th>Origem</th><th>Disparos</th><th>Último disparo</th><th>Status</th><th></th></tr></thead>
+    <tbody>${CONTACTS.map(c => `<tr>
+      <td><b style="color:var(--ink)">${esc(c.phone)}</b></td>
+      <td>${esc(c.name || '—')}</td>
+      <td style="color:var(--muted)">${esc(c.source || '—')}</td>
+      <td><span class="tag ${c.dispatch_count ? 'plain' : ''}" style="${c.dispatch_count ? '' : 'background:var(--orange-soft);color:var(--orange-deep)'}">${c.dispatch_count || 0}×</span></td>
+      <td>${c.last_dispatched_at ? fmtDT(c.last_dispatched_at) : '—'}</td>
+      <td>${c.opt_out ? '<span class="pill atrasado">🚫 opt-out</span>' : '<span class="pill pago">ativo</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn sm ghost" onclick="toggleOptOut('${c.id}', ${c.opt_out ? 'false' : 'true'})">${c.opt_out ? 'Reativar' : 'Opt-out'}</button>
+        <button class="btn sm red" onclick="delContact('${c.id}')">Excluir</button>
+      </td></tr>`).join('')}</tbody>
+  </table>
+  <p style="color:var(--faint);font-size:11.5px;margin-top:10px">${CONTACTS.length} contato(s) no filtro · números ficam na base mesmo depois do disparo terminar.</p>`;
+}
+async function toggleOptOut(id, v) { try { await api('/contacts/' + id, { method: 'PATCH', body: JSON.stringify({ opt_out: v }) }); CSTATS = await api('/contacts/stats').catch(() => CSTATS); renderMsgs(); loadContacts(); } catch (e) { toast('Erro: ' + e.message); } }
+async function delContact(id) { if (!confirm('Excluir este contato da base?')) return; try { await api('/contacts/' + id, { method: 'DELETE' }); CSTATS = await api('/contacts/stats').catch(() => CSTATS); renderMsgs(); loadContacts(); } catch (e) { toast('Erro: ' + e.message); } }
+async function onContactsImport(input) {
+  const f = input.files[0]; if (!f) return;
+  try {
+    let rows = [];
+    if (/\.(xlsx|xls)$/i.test(f.name)) {
+      await ensureXLSX();
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
+    } else {
+      const text = await f.text();
+      const delim = (text.match(/;/g) || []).length >= (text.match(/,/g) || []).length ? ';' : ',';
+      rows = text.split(/\r?\n/).map(l => l.split(/\t/.test(l) ? '\t' : delim));
+    }
+    const { recipients, invalid } = rowsToRecipients(rows);
+    if (!recipients.length) { toast('Nenhum número válido na planilha.'); return; }
+    const r = await api('/contacts/import', { method: 'POST', body: JSON.stringify({ contacts: recipients, source: f.name }) });
+    toast(`Importados: ${r.added} novo(s) · ${r.existing} já existiam${invalid ? ` · ${invalid} inválido(s)` : ''}`);
+    CSTATS = await api('/contacts/stats').catch(() => CSTATS);
+    renderMsgs(); loadContacts();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+
+/* ===================== 🧩 MODELOS de mensagem ===================== */
+function templatesView() {
+  if (!TEMPLATES.length) return '<div class="card-box"><p style="color:var(--yellow);font-size:13px">⚠️ Nenhum modelo — rode o <b>supabase/schema.sql</b> pra criar os modelos do plano de vendas, ou salve um modelo seu no compositor (💾 Salvar como modelo).</p></div>';
+  const wa = (s) => esc(s || '').replace(/\*(.+?)\*/g, '<b>$1</b>').replace(/_(.+?)_/g, '<i>$1</i>').replace(/\n/g, '<br>');
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px">
+    ${TEMPLATES.map(t => `
+      <div class="card-box" style="margin-bottom:0;display:flex;flex-direction:column">
+        <h4 style="font-size:13.5px">${esc(t.name)}</h4>
+        <div class="wa-preview" style="min-height:0;padding:12px;margin:10px 0;flex:1">
+          <div class="wa-bubble" style="font-size:12px;max-width:100%">
+            <div class="txt">${wa(t.message_text)}</div>
+            ${t.footer ? `<div class="ft">${esc(t.footer)}</div>` : ''}
+            ${(t.buttons || []).length ? `<div class="btns">${t.buttons.map(b => `<div class="b" style="font-size:12px">${esc(b.text)}</div>`).join('')}</div>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn sm" style="flex:1" onclick="useTemplate('${t.id}');msgTab('mass')">🚀 Usar no disparo</button>
+          <button class="btn sm red" onclick="delTemplate('${t.id}')">Excluir</button>
+        </div>
+      </div>`).join('')}
+  </div>
+  <p style="color:var(--faint);font-size:12px;margin-top:14px">💡 <b>{nome}</b> vira o primeiro nome do contato · <b>{opção A|opção B}</b> sorteia uma variação a cada mensagem (anti-bloqueio) · edite um modelo aplicando-o no disparo, ajustando e salvando com o mesmo nome.</p>`;
+}
+async function delTemplate(id) {
+  if (!confirm('Excluir este modelo?')) return;
+  try { await api('/templates/' + id, { method: 'DELETE' }); TEMPLATES = await api('/templates').catch(() => []); renderMsgs(); } catch (e) { toast('Erro: ' + e.message); }
+}
+
+/* ===================== 🎯 PLANO DE VENDAS ===================== */
+function planTplBtn(prefix) {
+  const t = TEMPLATES.find(x => (x.name || '').startsWith(prefix));
+  return t ? `<button class="btn sm ghost" onclick="useTemplate('${t.id}');msgTab('mass')">Usar modelo →</button>` : '<span style="color:var(--faint);font-size:11.5px">rode o schema.sql</span>';
+}
+function planView() {
+  return `
+  <div class="card-box">
+    <h4>🎯 A máquina de vendas HyperFlick</h4>
+    <div class="desc">O caminho do dinheiro: <b>disparo → resposta → quiz → teste grátis → Pix</b>. Cada etapa abaixo já está automatizada no sistema — seu trabalho é alimentar a base e seguir a régua.</div>
+    <div class="grid-stats" style="margin-bottom:0">
+      <div class="stat"><div class="lbl">1 · Disparo</div><div class="val" style="font-size:16px">Planilha → base 📇</div></div>
+      <div class="stat"><div class="lbl">2 · Resposta</div><div class="val" style="font-size:16px">Robô inicia o quiz 🤖</div></div>
+      <div class="stat"><div class="lbl">3 · Teste</div><div class="val" style="font-size:16px">Gerado na hora 🎁</div></div>
+      <div class="stat"><div class="lbl">4 · Venda</div><div class="val" style="font-size:16px">Plano clicado → Pix 💳</div></div>
+    </div>
+  </div>
+
+  <div class="card-box">
+    <h4>📅 Régua de 4 toques (use nos disparos)</h4>
+    <div class="desc">Dispare pra mesma lista seguindo esta sequência — nunca no mesmo dia. Quem responder em qualquer toque cai no robô do quiz.</div>
+    <div class="mini-row"><div><b>Dia 1 · 🎁 Abertura</b><div style="color:var(--muted);font-size:12px">Apresenta e oferece o teste grátis. Espere 10–15% de resposta.</div></div>${planTplBtn('🎁')}</div>
+    <div class="mini-row"><div><b>Dia 3 · ⭐ Prova social</b><div style="color:var(--muted);font-size:12px">Depoimento + repete a oferta do teste pra quem ignorou.</div></div>${planTplBtn('⭐')}</div>
+    <div class="mini-row"><div><b>Dia 5 · 🔥 Oferta com urgência</b><div style="color:var(--muted);font-size:12px">Comparação de preço + âncora (menos de R$ 0,40/dia).</div></div>${planTplBtn('🔥')}</div>
+    <div class="mini-row"><div><b>Dia 7 · ⏰ Última chamada</b><div style="color:var(--muted);font-size:12px">Escassez real: encerra a sequência. Depois deixe a lista descansar 30 dias (filtro 🧊 Frios).</div></div>${planTplBtn('⏰')}</div>
+    <div class="mini-row"><div><b>Contínuo · 🔄 Recuperação</b><div style="color:var(--muted);font-size:12px">Pra quem testou e sumiu (etapa Follow-up do funil).</div></div>${planTplBtn('🔄')}</div>
+  </div>
+
+  <div class="card-box">
+    <h4>🧮 Calculadora de meta</h4>
+    <div class="desc">Quanto você precisa disparar pra bater sua meta. Taxas conservadoras do mercado de IPTV: 8% respondem, 50% das respostas testam, 25% dos testes assinam.</div>
+    <div class="row" style="max-width:420px;flex-wrap:wrap">
+      <div class="field" style="margin:0;flex:1;min-width:140px"><label>Meta de faturamento (R$/mês)</label><input type="number" id="pcMeta" value="2000" oninput="calcPlan()"></div>
+      <div class="field" style="margin:0;flex:1;min-width:140px"><label>Ticket médio (R$)</label><input type="number" id="pcTicket" value="${PRICES.mensal}" step="0.1" oninput="calcPlan()"></div>
+    </div>
+    <div class="grid-stats" style="margin:16px 0 0">
+      <div class="stat"><div class="lbl">💳 Assinantes necessários</div><div class="val green" id="pcCli">—</div></div>
+      <div class="stat"><div class="lbl">🎁 Testes gerados</div><div class="val orange" id="pcTestes">—</div></div>
+      <div class="stat"><div class="lbl">💬 Respostas</div><div class="val purple" id="pcResp">—</div></div>
+      <div class="stat"><div class="lbl">📤 Disparos no mês</div><div class="val" id="pcDisp">—</div></div>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin-top:12px" id="pcDia">—</p>
+  </div>
+
+  <div class="card-box" style="margin-bottom:0">
+    <h4>🛡️ Regras de ouro (anti-bloqueio e conversão)</h4>
+    <div class="mini-row"><div>🔥 <b>Aqueça o chip</b>: número novo começa com 20–30 disparos/dia na primeira semana, depois dobra aos poucos. Nunca 500 de cara.</div></div>
+    <div class="mini-row"><div>⏱ <b>Intervalo 20–180s</b> (já automático) e <b>janela 8h–21h</b> (já automática): robô de madrugada = denúncia na certa.</div></div>
+    <div class="mini-row"><div>🎲 <b>Varie o texto</b>: os modelos usam {opção A|opção B} — cada mensagem sai diferente, o WhatsApp não vê massa idêntica.</div></div>
+    <div class="mini-row"><div>📵 <b>Respeite o opt-out</b> (já automático): quem manda "PARAR" sai da base sozinho. Insistir = banimento + multa LGPD.</div></div>
+    <div class="mini-row"><div>📱 <b>Chip dedicado pro disparo</b>, separado do número de atendimento/cobrança. Se banir, seu negócio continua de pé.</div></div>
+    <div class="mini-row"><div>🧊 <b>Descanse a lista</b>: terminou a régua de 4 toques? Só volte nela depois de 30 dias (filtro "Frios" na base).</div></div>
+    <div class="mini-row"><div>💰 <b>Responda rápido</b>: 78% das vendas vão pra quem responde primeiro. O robô segura o início, mas dúvidas de instalação são suas.</div></div>
+  </div>`;
+}
+function calcPlan() {
+  const meta = Number(document.getElementById('pcMeta')?.value) || 0;
+  const ticket = Number(document.getElementById('pcTicket')?.value) || PRICES.mensal;
+  const cli = Math.ceil(meta / Math.max(1, ticket));
+  const testes = Math.ceil(cli / 0.25);
+  const resp = Math.ceil(testes / 0.5);
+  const disp = Math.ceil(resp / 0.08);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v.toLocaleString('pt-BR'); };
+  set('pcCli', cli); set('pcTestes', testes); set('pcResp', resp); set('pcDisp', disp);
+  const dia = document.getElementById('pcDia');
+  if (dia) dia.innerHTML = `📌 Isso dá <b>≈ ${Math.ceil(disp / 22).toLocaleString('pt-BR')} disparos/dia útil</b> (22 dias). Com intervalo médio de 100s, são ~${Math.ceil(disp / 22 * 100 / 3600)}h de fila por dia — dentro da janela 8h–21h. E lembre: assinante de IPTV <b>renova todo mês</b>, então a meta fica mais fácil a cada mês que passa. 📈`;
+}
+
 /* ----- enviar / iniciar / programar ----- */
 async function dispatchMsg() {
   const text = (MSG.text || '').trim();
@@ -831,34 +1059,41 @@ async function dispatchMsg() {
     }
 
     // massa → sempre via fila (intervalo aleatório anti-ban)
-    let recipients = [];
-    if (MASS.target === 'planilha') {
-      recipients = MASS.sheet.recipients;
-      if (!recipients.length) throw new Error('Suba uma planilha com os números primeiro.');
-    } else {
-      const leads = (await api('/leads')).filter(l => l.source !== 'manual');
-      const pick = MASS.target === 'stage' ? leads.filter(l => l.stage === MASS.stage) : leads;
-      recipients = pick.map(l => ({ phone: l.phone, name: l.name }));
-      if (!recipients.length) throw new Error('Nenhum lead nesse filtro.');
-    }
     const scheduled = MASS.schedule === 'later';
     if (scheduled && !MASS.when) throw new Error('Escolha a data e hora do disparo.');
 
+    const names = { planilha: `Planilha ${MASS.sheet.fileName || ''}`.trim(), base: `Base: ${{ ativos: 'todos ativos', never: 'nunca disparados', cold: 'frios' }[MASS.baseFilter]}`, stage: `Etapa: ${MASS.stage}`, todos: 'Todos os leads' };
     const payload = {
-      name: MASS.target === 'planilha' ? `Planilha ${MASS.sheet.fileName || ''}`.trim() : (MASS.target === 'stage' ? `Etapa: ${MASS.stage}` : 'Todos os leads'),
+      name: names[MASS.target] || 'Disparo',
       text, footer, buttons, image: MSG.image || '',
-      recipients,
       instanceId: MASS.instanceId || undefined,
       delayMinS: Number(MASS.delayMin) || 20,
       delayMaxS: Number(MASS.delayMax) || 180,
+      windowStart: MASS.winStart, windowEnd: MASS.winEnd,
       ...(scheduled ? { scheduledAt: new Date(MASS.when).toISOString() } : {}),
     };
+    if (MASS.target === 'base') {
+      payload.audience = 'contacts';
+      payload.contactFilter = MASS.baseFilter === 'ativos' ? 'all' : MASS.baseFilter;
+      payload.coldDays = MASS.coldDays;
+    } else if (MASS.target === 'planilha') {
+      if (!MASS.sheet.recipients.length) throw new Error('Suba uma planilha com os números primeiro.');
+      payload.recipients = MASS.sheet.recipients;
+      payload.saveToContacts = !!MASS.saveToBase;
+      payload.source = MASS.sheet.fileName || 'planilha';
+    } else {
+      const leads = (await api('/leads')).filter(l => l.source !== 'manual');
+      const pick = MASS.target === 'stage' ? leads.filter(l => l.stage === MASS.stage) : leads;
+      payload.recipients = pick.map(l => ({ phone: l.phone, name: l.name }));
+      if (!payload.recipients.length) throw new Error('Nenhum lead nesse filtro.');
+    }
     const r = await api('/messages/broadcasts', { method: 'POST', body: JSON.stringify(payload) });
     // primeira mensagem sai já; o resto segue o sorteio via cron
     if (!scheduled) api('/messages/broadcasts/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshBcasts).catch(() => {});
-    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${scheduled ? 'Disparo programado' : 'Disparo iniciado'} — ${r.total} número(s)${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}</div>`;
+    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${scheduled ? 'Disparo programado' : 'Disparo iniciado'} — ${r.total} número(s)${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}${r.optedOut ? ` · ${r.optedOut} opt-out removido(s)` : ''}</div>`;
     toast(scheduled ? 'Disparo programado! 🗓' : 'Disparo iniciado! 🚀');
     MASS.sheet = { recipients: [], invalid: 0, fileName: '' };
+    api('/contacts/stats').then(s => { CSTATS = s; }).catch(() => {});
     refreshBcasts();
   } catch (e) {
     res.innerHTML = `<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">${esc(e.message)}</div>`;

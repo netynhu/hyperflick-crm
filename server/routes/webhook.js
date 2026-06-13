@@ -7,8 +7,30 @@ import { getPayment } from '../lib/mercadopago.js';
 import { sendMonthlyPix } from '../lib/followup.js';
 import { applyApprovedPayment } from '../lib/billing.js';
 import { getWaQuizSettings, quizTriggerMatch, isQuizActive, startWaQuiz, enterQuiz, offerPlans, handleQuizReply } from '../lib/waquiz.js';
+import { sendWhatsApp } from '../lib/service.js';
 
 const router = Router();
+
+// Pedido de descadastro (opt-out): "parar", "sair", "pare", "não quero"...
+const isOptOut = (t) => /^\s*(parar|pare|sair|stop|cancelar|remover|descadastrar|n[aã]o quero( mais)?( receber)?)\s*[.!]*\s*$/i.test(t || '');
+
+// Marca opt-out na base de contatos e confirma. Retorna true se tratou.
+async function handleOptOut(phone, text) {
+  if (!isOptOut(text)) return false;
+  try {
+    const { data: c } = await sb().from('contacts').select('id,opt_out')
+      .in('phone', phoneVariants(phone)).limit(1).maybeSingle();
+    if (c && !c.opt_out) await sb().from('contacts').update({ opt_out: true }).eq('id', c.id);
+    if (!c) {
+      // não estava na base: registra já como opt-out pra nunca ser disparado
+      await sb().from('contacts').insert({ phone: normalizePhone(phone), opt_out: true, source: 'opt-out' });
+    }
+  } catch (e) { /* tabela contacts ausente — rode o schema.sql */ }
+  try {
+    await sendWhatsApp({ leadId: null, phone, text: 'Tudo bem! Você não vai mais receber nossas mensagens. 🧡 Se mudar de ideia, é só mandar um oi.' });
+  } catch (e) { /* sem instância */ }
+  return true;
+}
 
 // Extrai telefone + texto de forma tolerante (o payload da uazapi pode variar)
 function parseInbound(body) {
@@ -48,6 +70,8 @@ router.post('/uazapi', async (req, res) => {
         const qs = await getWaQuizSettings();
         if (lead) {
           await logMessage({ leadId: lead.id, phone, direction: 'in', body: text, messageId });
+          // "PARAR"/"SAIR" → marca opt-out na base e confirma (antes de qualquer robô)
+          if (await handleOptOut(phone, text)) { res.json({ ok: true }); return; }
           let consumed = false;
           const buy = isBuyIntent(text);
 
@@ -69,8 +93,9 @@ router.post('/uazapi', async (req, res) => {
           }
           void consumed;
         } else {
-          // Número DESCONHECIDO: só entra no CRM se casar com a frase-gatilho do
-          // quiz (tráfego pago → wa.me). Conversa avulsa segue fora do CRM.
+          // Número DESCONHECIDO: opt-out vale mesmo sem lead (contato de disparo);
+          // fora isso, só entra no CRM se casar com a frase-gatilho do quiz.
+          if (await handleOptOut(phone, text)) { res.json({ ok: true }); return; }
           if (qs.enabled && quizTriggerMatch(text, qs.trigger)) {
             await startWaQuiz({ phone, pushName: name, inboundText: text, inboundId: messageId });
           }

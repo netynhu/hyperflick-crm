@@ -179,6 +179,66 @@ create table if not exists followups (
 create unique index if not exists followups_lead_type on followups (lead_id, type);
 
 -- ============================================================
+-- CONTACTS  (base de números para disparo — quem é, quantas vezes
+-- já recebeu disparo e se pediu pra sair)
+-- ============================================================
+create table if not exists contacts (
+  id                 uuid primary key default gen_random_uuid(),
+  phone              text not null unique,         -- só dígitos com DDI 55
+  name               text,
+  source             text,                          -- planilha/origem de onde veio
+  dispatch_count     int default 0,                 -- quantos disparos já recebeu
+  last_dispatched_at timestamptz,
+  opt_out            boolean default false,         -- pediu pra não receber mais
+  created_at         timestamptz default now(),
+  updated_at         timestamptz default now()
+);
+create index if not exists contacts_optout_idx on contacts (opt_out);
+create index if not exists contacts_lastdisp_idx on contacts (last_dispatched_at);
+
+drop trigger if exists trg_contacts_updated on contacts;
+create trigger trg_contacts_updated before update on contacts
+for each row execute function set_updated_at();
+
+-- ============================================================
+-- MESSAGE_TEMPLATES  (modelos prontos de mensagem para disparo)
+-- ============================================================
+create table if not exists message_templates (
+  id           uuid primary key default gen_random_uuid(),
+  name         text not null unique,
+  message_text text,
+  image        text,
+  footer       text,
+  buttons      jsonb default '[]'::jsonb,           -- [{"text":"..."}]
+  created_at   timestamptz default now(),
+  updated_at   timestamptz default now()
+);
+
+drop trigger if exists trg_templates_updated on message_templates;
+create trigger trg_templates_updated before update on message_templates
+for each row execute function set_updated_at();
+
+-- Modelos do PLANO DE VENDAS (régua de 4 toques + recuperação).
+-- {nome} vira o primeiro nome; {opção A|opção B} sorteia uma variação (anti-ban).
+insert into message_templates (name, message_text, footer, buttons) values
+  ('🎁 Dia 1 · Abertura — teste grátis',
+   E'{Oi|Olá|E aí} {nome}! Tudo {bem|certo} por aí? 😊\n\nAqui é da *HyperFlick* 🧡 A gente libera *+800 canais ao vivo, +60 mil filmes e séries* e todo o futebol num app só — sem travar e bem mais barato que TV por assinatura.\n\nLiberei um *TESTE GRÁTIS* pra você {conhecer|experimentar} sem pagar nada. Quer?',
+   'HyperFlick • IPTV', '[{"text":"Quero meu teste grátis 🎁"}]'),
+  ('⭐ Dia 3 · Prova social',
+   E'{Oi|Olá} {nome}! 👋\n\nSó hoje {3|4} pessoas saíram da TV por assinatura e vieram pra *HyperFlick* 🧡\n\n_"Saí da operadora cara, instalei em 5 minutos e nunca mais travou. Melhor decisão."_ — Rafael M. ⭐⭐⭐⭐⭐\n\nSeu *teste grátis* continua disponível — quer que eu libere {agora|pra você}?',
+   'HyperFlick • IPTV', '[{"text":"Quero meu teste grátis 🎁"}]'),
+  ('🔥 Dia 5 · Oferta com urgência',
+   E'{nome}, {olha só|presta atenção} 👀\n\nTV por assinatura: *R$ 120+/mês* pra meia dúzia de canais.\n*HyperFlick:* a partir de *R$ 19,90/mês* com +800 canais, filmes, séries e futebol ao vivo. 🧡\n\nE no plano anual sai por menos de *R$ 0,40 por dia*. ☕\n\nBora ativar o seu?',
+   'HyperFlick • IPTV', '[{"text":"Quero assinar 💳"},{"text":"Quero testar grátis antes 🎁"}]'),
+  ('⏰ Dia 7 · Última chamada',
+   E'{nome}, {última chamada|vou fechar sua reserva}! ⏰\n\nSeu acesso de *teste grátis* da HyperFlick expira hoje e vou liberar a vaga pra outra pessoa.\n\nSe quiser {garantir|continuar com} +800 canais e +60 mil filmes e séries sem travar, é só tocar abaixo 👇',
+   'HyperFlick • IPTV', '[{"text":"Quero assinar agora 🔥"},{"text":"Quero meu teste grátis 🎁"}]'),
+  ('🔄 Recuperação · sumiu depois do teste',
+   E'{Oi|Olá} {nome}! 😊\n\nVi que você testou a *HyperFlick* e {sumiu|não voltou}... aconteceu {algo|alguma coisa}? Se tiver qualquer dúvida ou dificuldade com o app, me chama que eu resolvo contigo na hora. 🧡\n\nE se quiser já ativar seu acesso completo, é só tocar abaixo 👇',
+   'HyperFlick • IPTV', '[{"text":"Quero assinar 💳"},{"text":"Tive uma dúvida 🤔"}]')
+on conflict (name) do nothing;
+
+-- ============================================================
 -- BROADCASTS  (disparos em massa: planilha de números + agendamento)
 -- ============================================================
 create table if not exists broadcasts (
@@ -205,6 +265,9 @@ alter table broadcasts add column if not exists instance_id  uuid;     -- whatsa
 alter table broadcasts add column if not exists delay_min_s  int default 20;
 alter table broadcasts add column if not exists delay_max_s  int default 180;
 alter table broadcasts add column if not exists next_send_at timestamptz;  -- próximo envio permitido (pacing)
+-- Janela de envio (horário comercial, fuso São Paulo) — fora dela o disparo pausa sozinho
+alter table broadcasts add column if not exists window_start int default 8;   -- hora (0-23)
+alter table broadcasts add column if not exists window_end   int default 21;  -- hora (0-23)
 
 drop trigger if exists trg_broadcasts_updated on broadcasts;
 create trigger trg_broadcasts_updated before update on broadcasts
