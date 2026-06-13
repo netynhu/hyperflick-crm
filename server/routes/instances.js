@@ -49,13 +49,31 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Cidades do proxy regional (autocomplete do modal Conectar)
+// Cidades do proxy regional (autocomplete do modal Conectar).
+// A busca da uazapi casa também pelo ESTADO (ex.: "São Paulo" retorna as 250
+// cidades de SP em ordem alfabética) — reordena por relevância do NOME antes
+// de devolver, senão a própria capital não aparece no topo.
 router.get('/:id/cities', async (req, res) => {
   try {
     const { data: inst, error } = await sb().from('whatsapp_instances').select('token').eq('id', req.params.id).single();
     if (error) throw error;
-    const r = await uazapi.proxyCities(inst.token, { search: String(req.query.search || '') });
-    res.json({ cities: r.cities || r || [] });
+    const search = String(req.query.search || '');
+    const r = await uazapi.proxyCities(inst.token, { search });
+    let cities = r.cities || r || [];
+    const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const q = norm(search);
+    if (q) {
+      const score = (c) => {
+        const l = norm(c.label || c.value);
+        if (l === q) return 0;          // nome exato
+        if (l.startsWith(q)) return 1;  // começa com
+        if (l.includes(q)) return 2;    // contém
+        return 3;                       // casou só pelo estado
+      };
+      cities = [...cities].sort((a, b) =>
+        score(a) - score(b) || String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR'));
+    }
+    res.json({ cities: cities.slice(0, 30) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

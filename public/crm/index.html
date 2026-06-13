@@ -1543,7 +1543,7 @@ function searchCities(id) {
   cityTimer = setTimeout(async () => {
     try {
       const r = await api(`/instances/${id}/cities?search=${encodeURIComponent(q)}`);
-      const list = (r.cities || []).slice(0, 12);
+      const list = (r.cities || []).slice(0, 20);
       document.getElementById('pcList').innerHTML = list.map(c => `
         <div class="mini-row" style="cursor:pointer;padding:7px 8px" onclick='pickCity(${JSON.stringify(c.value)},${JSON.stringify(c.state || '')},${JSON.stringify(c.label || c.value)},${JSON.stringify(c.state_label || '')})'>
           <span>📍 ${esc(c.label || c.value)}</span><span style="color:var(--muted);font-size:11.5px">${esc((c.state_label || c.state || '').toUpperCase())}</span>
