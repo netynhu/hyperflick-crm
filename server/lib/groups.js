@@ -10,11 +10,27 @@ import { normalizePhone } from './helpers.js';
 const GAP_MS = 3 * 60 * 1000;
 
 // Extrai o código do convite de um link do WhatsApp (ou aceita o código puro).
+// Formatos aceitos:
+//   https://chat.whatsapp.com/CODE
+//   https://chat.whatsapp.com/invite/CODE   (alguns compartilhamentos usam /invite/)
+//   whatsapp://chat?code=CODE                (link interno do app)
+//   CODE                                     (código puro, ~22 caracteres)
 export function parseInviteCode(link) {
   const s = String(link || '').trim();
-  const m = s.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/i);
+  // ?code=CODE (deep link do app)
+  let m = s.match(/[?&]code=([A-Za-z0-9_-]+)/i);
   if (m) return m[1];
+  // chat.whatsapp.com/CODE  ou  chat.whatsapp.com/invite/CODE
+  m = s.match(/chat\.whatsapp\.com\/(?:invite\/)?([A-Za-z0-9_-]+)/i);
+  if (m) return m[1];
+  // código puro (remove qualquer prefixo de caminho e lixo no fim)
   return s.replace(/^.*\//, '').replace(/[^A-Za-z0-9_-].*$/, '').trim();
+}
+
+// Um código de convite válido do WhatsApp tem 10+ caracteres (a uazapi recusa < 10).
+// "invite", "chat", etc. são fragmentos de URL mal interpretados → inválidos.
+export function isValidInviteCode(code) {
+  return /^[A-Za-z0-9_-]{10,50}$/.test(String(code || ''));
 }
 
 // Cadastra contatos novos na base (não sobrescreve existentes). Retorna nº de novos.
@@ -55,10 +71,39 @@ export async function processGroupJobs() {
     const inst = await resolveInstance(job.instance_id || undefined);
     if (!inst) throw new Error('Instância não conectada.');
 
+    // Código mal interpretado (ex.: "invite" de um link /invite/) → erro claro.
+    if (!isValidInviteCode(job.invite_code)) {
+      throw new Error('Link inválido — copie o link completo do convite (chat.whatsapp.com/...) e cole de novo.');
+    }
+
+    // 0) prévia do convite: valida o link e já pega o nome ANTES de entrar.
+    //    Se o grupo exigir aprovação de admin, avisamos sem gastar a entrada.
+    let previewName = '';
+    try {
+      const info = await uazapi.groupInviteInfo(inst.token, job.invite_code);
+      const g = info?.group || info || {};
+      previewName = g.Name || g.name || '';
+      if (g.IsJoinApprovalRequired) {
+        throw new Error('Este grupo exige aprovação do admin para entrar — não dá pra entrar automaticamente.');
+      }
+    } catch (e) {
+      // inviteInfo pode falhar em alguns grupos mesmo válidos; só aborta se for o erro de aprovação.
+      if (/aprovação/.test(e.message)) throw e;
+    }
+
     // 1) entra no grupo pelo convite
-    const jr = await uazapi.joinGroup(inst.token, job.invite_code);
+    let jr;
+    try {
+      jr = await uazapi.joinGroup(inst.token, job.invite_code);
+    } catch (e) {
+      // uazapi devolve "error joining group" pra QUALQUER falha — traduz pra algo útil.
+      if (/error joining group/i.test(e.message)) {
+        throw new Error('Não foi possível entrar: link expirado/revogado, grupo cheio, exige aprovação, ou o número está limitado pelo WhatsApp.');
+      }
+      throw e;
+    }
     const jid = jr?.group?.JID || jr?.JID || jr?.group?.jid || null;
-    const name = jr?.group?.Name || jr?.Name || job.group_name || '';
+    const name = jr?.group?.Name || jr?.Name || previewName || job.group_name || '';
     if (!jid) throw new Error(jr?.response || 'Não foi possível entrar (link inválido, expirado ou precisa de aprovação).');
 
     // 2) puxa os participantes (force ignora cache)
@@ -69,11 +114,18 @@ export async function processGroupJobs() {
     } catch (e) { console.warn('groupInfo:', e.message); }
 
     // 3) extrai telefones (alguns membros escondem o número → ignora)
+    //    PhoneNumber/JID vêm no formato JID ("5511...@s.whatsapp.net"). Quem oculta
+    //    o número aparece só com um "@lid" (id interno) — esses NÃO são telefone.
     const seen = new Set();
     const contacts = [];
     for (const p of parts) {
-      const raw = p.PhoneNumber || p.phone || String(p.JID || p.jid || '').split('@')[0];
-      const phone = normalizePhone(raw);
+      let raw = p.PhoneNumber || p.phone || '';
+      const jid = String(p.JID || p.jid || '');
+      // só usa o JID como telefone se for um número real (s.whatsapp.net), nunca @lid
+      if (!raw && /@s\.whatsapp\.net$/i.test(jid)) raw = jid;
+      if (!raw) continue;
+      if (/@lid$/i.test(String(raw))) continue; // número oculto
+      const phone = normalizePhone(String(raw).split('@')[0]);
       if (!phone || phone.length < 12) continue;
       if (seen.has(phone)) continue;
       seen.add(phone);

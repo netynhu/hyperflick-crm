@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { sb } from '../supabase.js';
 import { requireAdmin } from '../middleware.js';
-import { processGroupJobs, parseInviteCode } from '../lib/groups.js';
+import { processGroupJobs, parseInviteCode, isValidInviteCode } from '../lib/groups.js';
 
 const router = Router();
 router.use(requireAdmin);
@@ -19,16 +19,28 @@ router.post('/', async (req, res) => {
     const list = Array.isArray(b.links) ? b.links : String(b.links || '').split(/[\n,;]+/);
     const seen = new Set();
     const rows = [];
+    const invalid = [];
     for (const l of list) {
-      const code = parseInviteCode(l);
-      if (!code || code.length < 5 || seen.has(code)) continue;
+      const raw = String(l || '').trim();
+      if (!raw) continue;
+      const code = parseInviteCode(raw);
+      if (!isValidInviteCode(code)) { invalid.push(raw); continue; }
+      if (seen.has(code)) continue;
       seen.add(code);
-      rows.push({ invite_code: code, instance_id: b.instanceId || null, leave_after: b.leaveAfter !== false });
+      rows.push({ invite_code: code, raw_link: raw, instance_id: b.instanceId || null, leave_after: b.leaveAfter !== false });
     }
-    if (!rows.length) return res.status(400).json({ error: 'Cole pelo menos um link de grupo válido (chat.whatsapp.com/...).' });
-    const { data, error } = await sb().from('group_jobs').insert(rows).select();
-    if (error) throw error;
-    res.json({ ok: true, created: data.length });
+    if (!rows.length) {
+      return res.status(400).json({
+        error: 'Nenhum link válido. Cole o link completo do convite (ex.: https://chat.whatsapp.com/XXXXXXXX). Toque em "Convidar via link" no grupo e copie tudo.',
+      });
+    }
+    // raw_link é opcional no schema; se a coluna não existir, reinsere sem ela.
+    let ins = await sb().from('group_jobs').insert(rows).select();
+    if (ins.error && /raw_link/.test(ins.error.message || '')) {
+      ins = await sb().from('group_jobs').insert(rows.map(({ raw_link, ...r }) => r)).select();
+    }
+    if (ins.error) throw ins.error;
+    res.json({ ok: true, created: ins.data.length, invalid: invalid.length });
   } catch (e) {
     res.status(tableMissing(e) ? 400 : 500).json({ error: tableMissing(e) ? HINT : e.message });
   }

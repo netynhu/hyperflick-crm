@@ -265,6 +265,7 @@ create table if not exists group_jobs (
   id           uuid primary key default gen_random_uuid(),
   instance_id  uuid,                                -- número que entra no grupo
   invite_code  text not null,                       -- código do convite (do link)
+  raw_link     text,                                -- link original colado (debug)
   group_name   text,
   group_jid    text,
   status       text not null default 'pendente'
@@ -276,6 +277,8 @@ create table if not exists group_jobs (
   created_at   timestamptz default now(),
   finished_at  timestamptz
 );
+-- coluna nova em bancos que já tinham a tabela
+alter table group_jobs add column if not exists raw_link text;
 create index if not exists group_jobs_status_idx on group_jobs (status, created_at);
 
 -- ============================================================

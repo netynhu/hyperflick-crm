@@ -1105,8 +1105,9 @@ async function submitGroups() {
   btn.disabled = true; btn.textContent = 'Enviando...';
   try {
     const r = await api('/groups', { method: 'POST', body: JSON.stringify({ links, instanceId, leaveAfter: true }) });
-    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.created} grupo(s) na fila — o robô vai entrando devagar (anti-ban)</div>`;
-    toast(`${r.created} grupo(s) na fila 👥`);
+    const warn = r.invalid ? ` <span style="color:var(--red)">(${r.invalid} link(s) inválido(s) ignorado(s) — copie o link completo do convite)</span>` : '';
+    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.created} grupo(s) na fila — o robô vai entrando devagar (anti-ban)${warn}</div>`;
+    toast(`${r.created} grupo(s) na fila 👥${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}`);
     GROUPLINKS = ''; document.getElementById('grpLinks').value = '';
     api('/groups/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshGroups).catch(() => {});
     refreshGroups();
