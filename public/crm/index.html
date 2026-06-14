@@ -1063,8 +1063,8 @@ function groupsView() {
     : '<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">Nenhum número conectado — conecte em Configurações</div>';
   return `
   <div class="card-box" style="border-color:var(--yellow-bg);background:var(--yellow-bg)">
-    <h4 style="color:var(--yellow)">⚠️ Use um chip queimável</h4>
-    <div class="desc" style="color:var(--ink-2)">Entrar em vários grupos e exportar membros é a maior causa de <b>banimento</b>. Use um número <b>separado</b> do de vendas, entre em poucos grupos por dia, e dispare pra esses contatos com calma (eles não te chamaram). O sistema entra <b>devagar</b> (1 grupo a cada poucos minutos) e <b>sai automático</b> após exportar.</div>
+    <h4 style="color:var(--yellow)">⚠️ Cuidado ao disparar pra essa base</h4>
+    <div class="desc" style="color:var(--ink-2)">Entrar nos grupos é rápido — o sistema entra em <b>todos de uma vez</b> e <b>sai automático</b> após exportar. O risco de <b>banimento</b> vem depois, ao <b>disparar</b> pra quem não te chamou. Dispare pra essa base <b>com calma</b>, no horário comercial e com intervalo aleatório (já configurado), de preferência por um número <b>separado</b> do de vendas.</div>
   </div>
   <div class="card-box">
     <h4>👥 Capturar contatos de grupos</h4>
@@ -1106,7 +1106,7 @@ async function submitGroups() {
   try {
     const r = await api('/groups', { method: 'POST', body: JSON.stringify({ links, instanceId, leaveAfter: true }) });
     const warn = r.invalid ? ` <span style="color:var(--red)">(${r.invalid} link(s) inválido(s) ignorado(s) — copie o link completo do convite)</span>` : '';
-    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.created} grupo(s) na fila — o robô vai entrando devagar (anti-ban)${warn}</div>`;
+    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.created} grupo(s) — entrando e exportando agora${warn}</div>`;
     toast(`${r.created} grupo(s) na fila 👥${r.invalid ? ` · ${r.invalid} inválido(s)` : ''}`);
     GROUPLINKS = ''; document.getElementById('grpLinks').value = '';
     api('/groups/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshGroups).catch(() => {});

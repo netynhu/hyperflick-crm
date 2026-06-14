@@ -1,13 +1,14 @@
-// Fila de "entrar em grupo → exportar participantes → cadastrar nos contatos".
-// Processa 1 grupo por execução do cron, com um GAP mínimo entre entradas
-// (anti-ban: entrar em vários grupos de uma vez é o caminho mais curto pro ban).
+// "Entrar em grupo → exportar participantes → cadastrar nos contatos".
+// Entrar em grupo (diferente de disparar mensagem) não costuma gerar ban, então
+// processamos TODOS os grupos pendentes de uma vez — sem espera entre entradas.
 import { sb } from '../supabase.js';
 import { uazapi } from '../uazapi.js';
 import { resolveInstance } from './service.js';
 import { normalizePhone } from './helpers.js';
 
-// Intervalo mínimo entre entradas em grupo (ms). Mesmo com cron de 1 min, segura.
-const GAP_MS = 3 * 60 * 1000;
+// Teto de tempo por execução (ms): evita estourar o timeout do serverless quando
+// há MUITOS grupos. O que sobrar é processado na próxima chamada (cron/botão).
+const TIME_BUDGET_MS = 45 * 1000;
 
 // Extrai o código do convite de um link do WhatsApp (ou aceita o código puro).
 // Formatos aceitos:
@@ -53,22 +54,16 @@ async function importContacts(contacts, source) {
   } catch (e) { console.warn('importContacts (grupos):', e.message, '(rode o schema.sql)'); return 0; }
 }
 
-export async function processGroupJobs() {
-  // respeita o GAP: olha quando o último grupo terminou de ser processado
-  const { data: recent } = await sb().from('group_jobs')
-    .select('finished_at').not('finished_at', 'is', null)
-    .order('finished_at', { ascending: false }).limit(1);
-  const last = recent?.[0]?.finished_at ? new Date(recent[0].finished_at).getTime() : 0;
-  if (Date.now() - last < GAP_MS) return { processed: 0, actions: ['aguardando-gap'] };
-
-  const { data: jobs } = await sb().from('group_jobs')
-    .select('*').eq('status', 'pendente').order('created_at', { ascending: true }).limit(1);
-  const job = jobs?.[0];
-  if (!job) return { processed: 0, actions: [] };
-
+// Processa UM grupo: entra → exporta participantes → cadastra → sai.
+// `instCache` evita resolver o token da mesma instância várias vezes no lote.
+async function processOneJob(job, instCache) {
   await sb().from('group_jobs').update({ status: 'processando' }).eq('id', job.id);
   try {
-    const inst = await resolveInstance(job.instance_id || undefined);
+    let inst = instCache.get(job.instance_id || '_default');
+    if (inst === undefined) {
+      inst = await resolveInstance(job.instance_id || undefined);
+      instCache.set(job.instance_id || '_default', inst || null);
+    }
     if (!inst) throw new Error('Instância não conectada.');
 
     // Código mal interpretado (ex.: "invite" de um link /invite/) → erro claro.
@@ -142,11 +137,30 @@ export async function processGroupJobs() {
       status: 'concluido', group_jid: jid, group_name: name,
       found: contacts.length, imported, finished_at: new Date().toISOString(),
     }).eq('id', job.id);
-    return { processed: 1, actions: [`${name || job.invite_code}:+${imported}/${contacts.length}`] };
+    return `${name || job.invite_code}:+${imported}/${contacts.length}`;
   } catch (e) {
     await sb().from('group_jobs').update({
       status: 'erro', error: e.message, finished_at: new Date().toISOString(),
     }).eq('id', job.id);
-    return { processed: 1, actions: [`erro:${e.message}`] };
+    return `erro:${e.message}`;
   }
+}
+
+// Processa TODOS os grupos pendentes de uma vez (sem espera entre entradas).
+// Limita pelo tempo de execução; o resto fica pendente pra próxima chamada.
+export async function processGroupJobs() {
+  const { data: jobs } = await sb().from('group_jobs')
+    .select('*').eq('status', 'pendente').order('created_at', { ascending: true });
+  if (!jobs?.length) return { processed: 0, actions: [] };
+
+  const t0 = Date.now();
+  const instCache = new Map();
+  const actions = [];
+  let processed = 0;
+  for (const job of jobs) {
+    actions.push(await processOneJob(job, instCache));
+    processed++;
+    if (Date.now() - t0 > TIME_BUDGET_MS) break; // resto na próxima execução
+  }
+  return { processed, pending: jobs.length - processed, actions };
 }
