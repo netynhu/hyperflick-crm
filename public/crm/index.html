@@ -659,6 +659,7 @@ let MSG = { text: '', footer: '', image: '', buttons: [], stageCounts: {}, total
 let SINGLE = { instanceId: '', number: '' };
 let MASS = { target: 'planilha', sheet: { recipients: [], invalid: 0, fileName: '' }, saveToBase: true, baseFilter: 'ativos', coldDays: 30, stage: 'lead', instanceId: '', delayMin: 20, delayMax: 180, limit: '', schedule: 'now', when: '', winStart: 8, winEnd: 21 };
 let BCASTS = [], INSTANCES = [], TEMPLATES = [], CSTATS = null, CONTACTS = [], CFILTER = 'all', CSEARCH = '';
+let GROUPS = [], GROUPLINKS = '';
 
 async function loadMsgs() {
   // contagem por etapa para o seletor de destinatários
@@ -674,7 +675,7 @@ async function loadMsgs() {
   try { CSTATS = await api('/contacts/stats'); } catch (e) { CSTATS = null; }
   renderMsgs();
 }
-function msgTab(t) { MSGTAB = t; renderMsgs(); if (t === 'contacts') loadContacts(); }
+function msgTab(t) { MSGTAB = t; renderMsgs(); if (t === 'contacts') loadContacts(); if (t === 'groups') refreshGroups(); }
 function sendLabel() { return MSGTAB === 'single' ? 'Enviar mensagem' : (MASS.schedule === 'later' ? '🗓 Programar disparo' : '🚀 Iniciar disparo'); }
 
 function instLabel(i) { return (i.phone || i.name) + (i.is_default ? ' · padrão' : ''); }
@@ -692,10 +693,12 @@ function renderMsgs() {
     <button class="${MSGTAB === 'single' ? 'on' : ''}" onclick="msgTab('single')">✉️ Avulsa</button>
     <button class="${MSGTAB === 'mass' ? 'on' : ''}" onclick="msgTab('mass')">🚀 Disparo em massa</button>
     <button class="${MSGTAB === 'contacts' ? 'on' : ''}" onclick="msgTab('contacts')">📇 Contatos</button>
+    <button class="${MSGTAB === 'groups' ? 'on' : ''}" onclick="msgTab('groups')">👥 Grupos</button>
     <button class="${MSGTAB === 'templates' ? 'on' : ''}" onclick="msgTab('templates')">🧩 Modelos</button>
     <button class="${MSGTAB === 'plan' ? 'on' : ''}" onclick="msgTab('plan')">🎯 Plano de vendas</button>
   </div>`;
   if (MSGTAB === 'contacts') { document.getElementById('msgs').innerHTML = tabs + contactsView(); return; }
+  if (MSGTAB === 'groups') { document.getElementById('msgs').innerHTML = tabs + groupsView(); return; }
   if (MSGTAB === 'templates') { document.getElementById('msgs').innerHTML = tabs + templatesView(); return; }
   if (MSGTAB === 'plan') { document.getElementById('msgs').innerHTML = tabs + planView(); calcPlan(); return; }
   document.getElementById('msgs').innerHTML = `
@@ -1052,6 +1055,65 @@ async function onContactsImport(input) {
     renderMsgs(); loadContacts();
   } catch (e) { toast('Erro: ' + e.message); }
 }
+
+/* ===================== 👥 GRUPOS (captura de contatos) ===================== */
+function groupsView() {
+  const insts = INSTANCES.length
+    ? `<select id="grpInst">${INSTANCES.map(i => `<option value="${i.id}" ${i.is_default ? '' : ''}>${esc(instLabel(i))}</option>`).join('')}</select>`
+    : '<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">Nenhum número conectado — conecte em Configurações</div>';
+  return `
+  <div class="card-box" style="border-color:var(--yellow-bg);background:var(--yellow-bg)">
+    <h4 style="color:var(--yellow)">⚠️ Use um chip queimável</h4>
+    <div class="desc" style="color:var(--ink-2)">Entrar em vários grupos e exportar membros é a maior causa de <b>banimento</b>. Use um número <b>separado</b> do de vendas, entre em poucos grupos por dia, e dispare pra esses contatos com calma (eles não te chamaram). O sistema entra <b>devagar</b> (1 grupo a cada poucos minutos) e <b>sai automático</b> após exportar.</div>
+  </div>
+  <div class="card-box">
+    <h4>👥 Capturar contatos de grupos</h4>
+    <div class="desc">Cole os links dos grupos (um por linha). O robô entra, exporta os participantes, remove repetidos e cadastra na sua base de contatos.</div>
+    <div class="field"><label>Número que vai entrar nos grupos</label>${insts}</div>
+    <div class="field"><label>Links dos grupos (um por linha)</label>
+      <textarea id="grpLinks" rows="5" placeholder="https://chat.whatsapp.com/XXXXXXXX&#10;https://chat.whatsapp.com/YYYYYYYY" oninput="GROUPLINKS=this.value">${esc(GROUPLINKS)}</textarea>
+    </div>
+    <button class="btn" id="grpSend" onclick="submitGroups()" ${INSTANCES.length ? '' : 'disabled'}>👥 Entrar e exportar contatos</button>
+    <div id="grpResult" style="margin-top:12px"></div>
+  </div>
+  <div class="section-h" style="margin-top:24px">📋 Grupos processados</div>
+  <div id="grpList">${groupsListHtml()}</div>`;
+}
+function grpStatusPill(s) {
+  const map = { pendente: ['pendente', '🕒 na fila'], processando: ['pendente', '📥 entrando'], concluido: ['pago', '✓ exportado'], erro: ['atrasado', '✕ erro'] };
+  const [cls, lbl] = map[s] || ['plain', s];
+  return `<span class="pill ${cls}">${lbl}</span>`;
+}
+function groupsListHtml() {
+  if (!GROUPS.length) return '<div class="card-box" style="margin-bottom:0"><p style="color:var(--muted);font-size:13px">Nenhum grupo ainda. Cole os links acima pra começar. 👆</p></div>';
+  return `<div class="card-box" style="margin-bottom:0">
+    <div style="display:flex;justify-content:flex-end"><button class="btn sm ghost" onclick="refreshGroups()">↻ Atualizar</button></div>
+    ${GROUPS.map(g => `<div class="mini-row" style="gap:14px">
+      <div style="min-width:0;flex:1">
+        <b style="color:var(--ink)">${esc(g.group_name || g.invite_code)}</b> ${grpStatusPill(g.status)}
+        <div style="color:var(--faint);font-size:11.5px;margin-top:2px">${g.status === 'concluido' ? `${g.imported} novo(s) de ${g.found} membro(s) com telefone` : g.status === 'erro' ? esc(g.error || 'falhou') : fmtDT(g.created_at)}</div>
+      </div>
+      <button class="btn sm red" onclick="delGroup('${g.id}')">Excluir</button>
+    </div>`).join('')}</div>`;
+}
+async function refreshGroups() { try { GROUPS = await api('/groups'); const el = document.getElementById('grpList'); if (el) el.innerHTML = groupsListHtml(); } catch (e) { const el = document.getElementById('grpList'); if (el) el.innerHTML = `<div class="card-box" style="margin-bottom:0"><p style="color:var(--red);font-size:13px">${esc(e.message)}</p></div>`; } }
+async function submitGroups() {
+  const links = (document.getElementById('grpLinks').value || '').trim();
+  if (!links) { toast('Cole pelo menos um link de grupo.'); return; }
+  const instanceId = document.getElementById('grpInst')?.value;
+  const btn = document.getElementById('grpSend'); const res = document.getElementById('grpResult');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    const r = await api('/groups', { method: 'POST', body: JSON.stringify({ links, instanceId, leaveAfter: true }) });
+    res.innerHTML = `<div class="chip" style="color:var(--green);border-color:var(--green-bg);background:var(--green-bg)">✓ ${r.created} grupo(s) na fila — o robô vai entrando devagar (anti-ban)</div>`;
+    toast(`${r.created} grupo(s) na fila 👥`);
+    GROUPLINKS = ''; document.getElementById('grpLinks').value = '';
+    api('/groups/process', { method: 'POST', body: JSON.stringify({}) }).then(refreshGroups).catch(() => {});
+    refreshGroups();
+  } catch (e) { res.innerHTML = `<div class="chip" style="color:var(--red);border-color:var(--red-bg);background:var(--red-bg)">${esc(e.message)}</div>`; }
+  finally { btn.disabled = false; btn.textContent = '👥 Entrar e exportar contatos'; }
+}
+async function delGroup(id) { if (!confirm('Remover este grupo da lista?')) return; try { await api('/groups/' + id, { method: 'DELETE' }); refreshGroups(); } catch (e) { toast('Erro: ' + e.message); } }
 
 /* ===================== 🧩 MODELOS de mensagem ===================== */
 function templatesView() {

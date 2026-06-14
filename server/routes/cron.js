@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { runFollowups, runBilling } from '../lib/followup.js';
 import { reconcilePendingPix } from '../lib/billing.js';
 import { processBroadcasts } from '../lib/broadcast.js';
+import { processGroupJobs } from '../lib/groups.js';
 
 const router = Router();
 
@@ -25,7 +26,10 @@ router.all('/followup', async (req, res) => {
     // Disparos em massa agendados: envia um lote por execução.
     let broadcasts = { processed: 0, actions: [] };
     try { broadcasts = await processBroadcasts(); } catch (e) { broadcasts = { error: e.message }; }
-    res.json({ ok: true, followups, billing, payments, broadcasts });
+    // Fila de grupos: entra em 1 grupo por execução (respeitando o gap anti-ban).
+    let groups = { processed: 0, actions: [] };
+    try { groups = await processGroupJobs(); } catch (e) { groups = { error: e.message }; }
+    res.json({ ok: true, followups, billing, payments, broadcasts, groups });
   } catch (e) {
     console.error('cron/followup', e.message);
     res.status(500).json({ error: e.message });

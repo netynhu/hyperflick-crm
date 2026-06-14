@@ -97,6 +97,24 @@ export const uazapi = {
       },
     });
   },
+  // ---- Grupos (token da instância) ----
+  // Entra num grupo pelo código/URL do convite. Retorna { response, group:{JID,Name}, needs_refresh }
+  joinGroup(token, invitecode) {
+    return call('/group/join', { method: 'POST', token, body: { invitecode } });
+  },
+  // Info do grupo (com participantes). Retorna { JID, Name, Participants:[{PhoneNumber,DisplayName,...}] }
+  groupInfo(token, groupjid, { force = true } = {}) {
+    return call('/group/info', { method: 'POST', token, body: { groupjid, force } });
+  },
+  // Info pelo convite (prévia sem entrar). Retorna { JID, Name, Participants? }
+  groupInviteInfo(token, invitecode) {
+    return call('/group/inviteInfo', { method: 'POST', token, body: { invitecode } });
+  },
+  // Sai do grupo.
+  leaveGroup(token, groupjid) {
+    return call('/group/leave', { method: 'POST', token, body: { groupjid } });
+  },
+
   // Registra o webhook para receber mensagens de entrada
   setWebhook(token, url) {
     return call('/webhook', {

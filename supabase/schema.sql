@@ -258,6 +258,27 @@ insert into message_templates (name, message_text, footer, buttons) values
 on conflict (name) do nothing;
 
 -- ============================================================
+-- GROUP_JOBS  (entrar em grupo por link → exportar participantes → contatos)
+-- 1 job por link, processado em fila pelo cron (entra devagar = anti-ban).
+-- ============================================================
+create table if not exists group_jobs (
+  id           uuid primary key default gen_random_uuid(),
+  instance_id  uuid,                                -- número que entra no grupo
+  invite_code  text not null,                       -- código do convite (do link)
+  group_name   text,
+  group_jid    text,
+  status       text not null default 'pendente'
+               check (status in ('pendente','processando','concluido','erro')),
+  found        int default 0,                       -- participantes com telefone
+  imported     int default 0,                       -- novos contatos cadastrados
+  leave_after  boolean default true,                -- sair do grupo após exportar
+  error        text,
+  created_at   timestamptz default now(),
+  finished_at  timestamptz
+);
+create index if not exists group_jobs_status_idx on group_jobs (status, created_at);
+
+-- ============================================================
 -- BROADCASTS  (disparos em massa: planilha de números + agendamento)
 -- ============================================================
 create table if not exists broadcasts (
