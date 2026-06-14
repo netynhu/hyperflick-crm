@@ -1080,7 +1080,7 @@ function groupsView() {
   <div id="grpList">${groupsListHtml()}</div>`;
 }
 function grpStatusPill(s) {
-  const map = { pendente: ['pendente', '🕒 na fila'], processando: ['pendente', '📥 entrando'], concluido: ['pago', '✓ exportado'], erro: ['atrasado', '✕ erro'] };
+  const map = { pendente: ['pendente', '🕒 na fila'], processando: ['pendente', '📥 entrando'], aguardando: ['pendente', '⏳ aguardando aprovação'], concluido: ['pago', '✓ exportado'], erro: ['atrasado', '✕ erro'] };
   const [cls, lbl] = map[s] || ['plain', s];
   return `<span class="pill ${cls}">${lbl}</span>`;
 }
@@ -1091,7 +1091,7 @@ function groupsListHtml() {
     ${GROUPS.map(g => `<div class="mini-row" style="gap:14px">
       <div style="min-width:0;flex:1">
         <b style="color:var(--ink)">${esc(g.group_name || g.invite_code)}</b> ${grpStatusPill(g.status)}
-        <div style="color:var(--faint);font-size:11.5px;margin-top:2px">${g.status === 'concluido' ? `${g.imported} novo(s) de ${g.found} membro(s) com telefone` : g.status === 'erro' ? esc(g.error || 'falhou') : fmtDT(g.created_at)}</div>
+        <div style="color:var(--faint);font-size:11.5px;margin-top:2px">${g.status === 'concluido' ? `${g.imported} novo(s) de ${g.found} membro(s) com telefone` : (g.status === 'erro' || g.status === 'aguardando') ? esc(g.error || (g.status === 'aguardando' ? 'aguardando aprovação do admin' : 'falhou')) : fmtDT(g.created_at)}</div>
       </div>
       <button class="btn sm red" onclick="delGroup('${g.id}')">Excluir</button>
     </div>`).join('')}</div>`;

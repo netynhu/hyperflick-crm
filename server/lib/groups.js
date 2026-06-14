@@ -54,16 +54,65 @@ async function importContacts(contacts, source) {
   } catch (e) { console.warn('importContacts (grupos):', e.message, '(rode o schema.sql)'); return 0; }
 }
 
-// Processa UM grupo: entra → exporta participantes → cadastra → sai.
-// `instCache` evita resolver o token da mesma instância várias vezes no lote.
+// Por quanto tempo seguimos re-checando um grupo que pediu aprovação do admin.
+// Passou disso sem ser aprovado → desiste (marca erro).
+const APPROVAL_EXPIRY_MS = 72 * 60 * 60 * 1000;
+
+// Resolve a instância do job (com cache) — null se não estiver conectada.
+async function resolveJobInstance(job, instCache) {
+  const key = job.instance_id || '_default';
+  if (!instCache.has(key)) {
+    instCache.set(key, (await resolveInstance(job.instance_id || undefined)) || null);
+  }
+  return instCache.get(key);
+}
+
+// Extrai telefones dos participantes (ignora quem esconde o número → @lid).
+// PhoneNumber/JID vêm no formato JID ("5511...@s.whatsapp.net").
+function extractContacts(parts) {
+  const seen = new Set();
+  const contacts = [];
+  for (const p of parts) {
+    let raw = p.PhoneNumber || p.phone || '';
+    const jid = String(p.JID || p.jid || '');
+    if (!raw && /@s\.whatsapp\.net$/i.test(jid)) raw = jid; // número real, nunca @lid
+    if (!raw) continue;
+    if (/@lid$/i.test(String(raw))) continue; // número oculto
+    const phone = normalizePhone(String(raw).split('@')[0]);
+    if (!phone || phone.length < 12) continue;
+    if (seen.has(phone)) continue;
+    seen.add(phone);
+    contacts.push({ phone, name: p.DisplayName || p.displayName || null });
+  }
+  return contacts;
+}
+
+// Já estamos no grupo: puxa participantes → cadastra → sai → marca concluído.
+async function exportAndFinish(inst, job, jid, name) {
+  let parts = [];
+  try {
+    const info = await uazapi.groupInfo(inst.token, jid, { force: true });
+    parts = info?.Participants || info?.participants || [];
+  } catch (e) { console.warn('groupInfo:', e.message); }
+
+  const contacts = extractContacts(parts);
+  const imported = await importContacts(contacts, `grupo: ${name || job.invite_code}`);
+
+  if (job.leave_after) { try { await uazapi.leaveGroup(inst.token, jid); } catch (e) { /* segue */ } }
+
+  await sb().from('group_jobs').update({
+    status: 'concluido', group_jid: jid, group_name: name,
+    found: contacts.length, imported, finished_at: new Date().toISOString(), error: null,
+  }).eq('id', job.id);
+  return `${name || job.invite_code}:+${imported}/${contacts.length}`;
+}
+
+// Processa UM grupo pendente: entra → exporta. Se exigir aprovação do admin,
+// envia a solicitação e deixa "aguardando" (re-checado depois).
 async function processOneJob(job, instCache) {
   await sb().from('group_jobs').update({ status: 'processando' }).eq('id', job.id);
   try {
-    let inst = instCache.get(job.instance_id || '_default');
-    if (inst === undefined) {
-      inst = await resolveInstance(job.instance_id || undefined);
-      instCache.set(job.instance_id || '_default', inst || null);
-    }
+    const inst = await resolveJobInstance(job, instCache);
     if (!inst) throw new Error('Instância não conectada.');
 
     // Código mal interpretado (ex.: "invite" de um link /invite/) → erro claro.
@@ -71,73 +120,38 @@ async function processOneJob(job, instCache) {
       throw new Error('Link inválido — copie o link completo do convite (chat.whatsapp.com/...) e cole de novo.');
     }
 
-    // 0) prévia do convite: valida o link e já pega o nome ANTES de entrar.
-    //    Se o grupo exigir aprovação de admin, avisamos sem gastar a entrada.
-    let previewName = '';
+    // 0) prévia do convite: valida o link, pega o nome e descobre se exige aprovação.
+    let previewName = '', previewJid = '', needsApproval = false;
     try {
       const info = await uazapi.groupInviteInfo(inst.token, job.invite_code);
       const g = info?.group || info || {};
       previewName = g.Name || g.name || '';
-      if (g.IsJoinApprovalRequired) {
-        throw new Error('Este grupo exige aprovação do admin para entrar — não dá pra entrar automaticamente.');
-      }
-    } catch (e) {
-      // inviteInfo pode falhar em alguns grupos mesmo válidos; só aborta se for o erro de aprovação.
-      if (/aprovação/.test(e.message)) throw e;
-    }
+      previewJid = g.JID || g.jid || '';
+      needsApproval = !!g.IsJoinApprovalRequired;
+    } catch (e) { /* inviteInfo pode falhar em grupos válidos; segue pro join */ }
 
-    // 1) entra no grupo pelo convite
-    let jr;
+    // 1) entra (ou solicita entrada, se exigir aprovação)
+    let jr = null;
     try {
       jr = await uazapi.joinGroup(inst.token, job.invite_code);
     } catch (e) {
-      // uazapi devolve "error joining group" pra QUALQUER falha — traduz pra algo útil.
+      // Se exige aprovação, "falhar" aqui geralmente significa "solicitação enviada,
+      // aguardando o admin" — então deixamos aguardando em vez de erro.
+      if (needsApproval) return await markAwaiting(job, previewJid, previewName);
       if (/error joining group/i.test(e.message)) {
         throw new Error('Não foi possível entrar: link expirado/revogado, grupo cheio, exige aprovação, ou o número está limitado pelo WhatsApp.');
       }
       throw e;
     }
-    const jid = jr?.group?.JID || jr?.JID || jr?.group?.jid || null;
+    const jid = jr?.group?.JID || jr?.JID || jr?.group?.jid || previewJid || null;
     const name = jr?.group?.Name || jr?.Name || previewName || job.group_name || '';
+
+    // Grupo com aprovação: o join só ENVIA a solicitação — ainda não somos membros.
+    // Guarda e re-checa depois (vale também caso a prévia tenha errado o flag).
+    if (needsApproval) return await markAwaiting(job, jid, name);
+
     if (!jid) throw new Error(jr?.response || 'Não foi possível entrar (link inválido, expirado ou precisa de aprovação).');
-
-    // 2) puxa os participantes (force ignora cache)
-    let parts = [];
-    try {
-      const info = await uazapi.groupInfo(inst.token, jid, { force: true });
-      parts = info?.Participants || info?.participants || [];
-    } catch (e) { console.warn('groupInfo:', e.message); }
-
-    // 3) extrai telefones (alguns membros escondem o número → ignora)
-    //    PhoneNumber/JID vêm no formato JID ("5511...@s.whatsapp.net"). Quem oculta
-    //    o número aparece só com um "@lid" (id interno) — esses NÃO são telefone.
-    const seen = new Set();
-    const contacts = [];
-    for (const p of parts) {
-      let raw = p.PhoneNumber || p.phone || '';
-      const jid = String(p.JID || p.jid || '');
-      // só usa o JID como telefone se for um número real (s.whatsapp.net), nunca @lid
-      if (!raw && /@s\.whatsapp\.net$/i.test(jid)) raw = jid;
-      if (!raw) continue;
-      if (/@lid$/i.test(String(raw))) continue; // número oculto
-      const phone = normalizePhone(String(raw).split('@')[0]);
-      if (!phone || phone.length < 12) continue;
-      if (seen.has(phone)) continue;
-      seen.add(phone);
-      contacts.push({ phone, name: p.DisplayName || p.displayName || null });
-    }
-
-    // 4) cadastra na base de contatos (origem = nome do grupo)
-    const imported = await importContacts(contacts, `grupo: ${name || job.invite_code}`);
-
-    // 5) sai do grupo (decisão do usuário: sair após exportar)
-    if (job.leave_after) { try { await uazapi.leaveGroup(inst.token, jid); } catch (e) { /* segue */ } }
-
-    await sb().from('group_jobs').update({
-      status: 'concluido', group_jid: jid, group_name: name,
-      found: contacts.length, imported, finished_at: new Date().toISOString(),
-    }).eq('id', job.id);
-    return `${name || job.invite_code}:+${imported}/${contacts.length}`;
+    return await exportAndFinish(inst, job, jid, name);
   } catch (e) {
     await sb().from('group_jobs').update({
       status: 'erro', error: e.message, finished_at: new Date().toISOString(),
@@ -146,21 +160,81 @@ async function processOneJob(job, instCache) {
   }
 }
 
-// Processa TODOS os grupos pendentes de uma vez (sem espera entre entradas).
-// Limita pelo tempo de execução; o resto fica pendente pra próxima chamada.
-export async function processGroupJobs() {
-  const { data: jobs } = await sb().from('group_jobs')
-    .select('*').eq('status', 'pendente').order('created_at', { ascending: true });
-  if (!jobs?.length) return { processed: 0, actions: [] };
+// Marca o job como aguardando aprovação do admin (solicitação já enviada).
+async function markAwaiting(job, jid, name) {
+  const upd = await sb().from('group_jobs').update({
+    status: 'aguardando', group_jid: jid || null, group_name: name || job.group_name || null,
+    error: 'Solicitação enviada — aguardando o admin aprovar a entrada.',
+  }).eq('id', job.id);
+  // Banco antigo (sem o status 'aguardando' no CHECK) → degrada com aviso claro.
+  if (upd.error && /status_check|check constraint/i.test(upd.error.message || '')) {
+    await sb().from('group_jobs').update({
+      status: 'erro', group_jid: jid || null, group_name: name || job.group_name || null,
+      error: 'Grupo exige aprovação do admin. Rode o supabase/schema.sql pra ativar o acompanhamento automático da aprovação.',
+      finished_at: new Date().toISOString(),
+    }).eq('id', job.id);
+    return `aprovacao-sem-migracao:${name || job.invite_code}`;
+  }
+  return `aguardando-aprovacao:${name || job.invite_code}`;
+}
 
+// Re-checa um job "aguardando": se já fomos aprovados (groupInfo devolve membros),
+// exporta. Se passou do prazo sem aprovação, desiste.
+async function recheckAwaitingJob(job, instCache) {
+  try {
+    const inst = await resolveJobInstance(job, instCache);
+    if (!inst) return null; // instância caiu agora; tenta na próxima
+    if (!job.group_jid) return null; // sem JID não dá pra checar; deixa como está
+
+    let parts = [];
+    try {
+      const info = await uazapi.groupInfo(inst.token, job.group_jid, { force: true });
+      parts = info?.Participants || info?.participants || [];
+    } catch (e) { /* ainda não aprovado / sem acesso ao grupo */ }
+
+    if (parts.length) {
+      // entrou! exporta normalmente
+      return await exportAndFinish(inst, job, job.group_jid, job.group_name);
+    }
+    // ainda não aprovado: expira após o prazo
+    if (Date.now() - new Date(job.created_at).getTime() > APPROVAL_EXPIRY_MS) {
+      await sb().from('group_jobs').update({
+        status: 'erro', error: 'Aprovação não concedida pelo admin no prazo.',
+        finished_at: new Date().toISOString(),
+      }).eq('id', job.id);
+      return `aprovacao-expirada:${job.group_name || job.invite_code}`;
+    }
+    return null; // segue aguardando
+  } catch (e) { return null; }
+}
+
+// Processa TODOS os pendentes de uma vez (sem espera) e re-checa os que aguardam
+// aprovação. Limita pelo tempo de execução; o resto fica pra próxima chamada.
+export async function processGroupJobs() {
   const t0 = Date.now();
   const instCache = new Map();
   const actions = [];
   let processed = 0;
-  for (const job of jobs) {
-    actions.push(await processOneJob(job, instCache));
-    processed++;
-    if (Date.now() - t0 > TIME_BUDGET_MS) break; // resto na próxima execução
+  const overBudget = () => Date.now() - t0 > TIME_BUDGET_MS;
+
+  // 1) re-checa quem está aguardando aprovação (exporta se já entrou)
+  const { data: awaiting } = await sb().from('group_jobs')
+    .select('*').eq('status', 'aguardando').order('created_at', { ascending: true });
+  let stillAwaiting = (awaiting || []).length;
+  for (const job of awaiting || []) {
+    const r = await recheckAwaitingJob(job, instCache);
+    if (r) { actions.push(r); processed++; stillAwaiting--; }
+    if (overBudget()) return { processed, awaiting: stillAwaiting, pending: null, actions };
   }
-  return { processed, pending: jobs.length - processed, actions };
+
+  // 2) processa os pendentes
+  const { data: jobs } = await sb().from('group_jobs')
+    .select('*').eq('status', 'pendente').order('created_at', { ascending: true });
+  let pending = (jobs || []).length;
+  for (const job of jobs || []) {
+    actions.push(await processOneJob(job, instCache));
+    processed++; pending--;
+    if (overBudget()) break; // resto na próxima execução
+  }
+  return { processed, awaiting: stillAwaiting, pending, actions };
 }

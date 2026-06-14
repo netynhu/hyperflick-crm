@@ -269,7 +269,7 @@ create table if not exists group_jobs (
   group_name   text,
   group_jid    text,
   status       text not null default 'pendente'
-               check (status in ('pendente','processando','concluido','erro')),
+               check (status in ('pendente','processando','concluido','erro','aguardando')),
   found        int default 0,                       -- participantes com telefone
   imported     int default 0,                       -- novos contatos cadastrados
   leave_after  boolean default true,                -- sair do grupo após exportar
@@ -279,6 +279,11 @@ create table if not exists group_jobs (
 );
 -- coluna nova em bancos que já tinham a tabela
 alter table group_jobs add column if not exists raw_link text;
+-- 'aguardando' = solicitou entrada num grupo que exige aprovação do admin;
+-- re-checado a cada rodada até ser aprovado (aí exporta) ou expirar.
+alter table group_jobs drop constraint if exists group_jobs_status_check;
+alter table group_jobs add constraint group_jobs_status_check
+  check (status in ('pendente','processando','concluido','erro','aguardando'));
 create index if not exists group_jobs_status_idx on group_jobs (status, created_at);
 
 -- ============================================================
